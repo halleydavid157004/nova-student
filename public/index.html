@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Nova Student — Radar Global de Beneficios para Estudiantes</title>
+  <meta name="description" content="Descubre software gratuito, créditos cloud, licencias educativas y descuentos verificados para estudiantes en todo el mundo. Nova Student vigila las mejores ofertas por ti.">
+  <meta name="theme-color" content="#7c3aed">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=7">
+</head>
+<body>
+  <!-- Fondo decorativo -->
+  <div class="bg-orbs" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+  <div class="noise" aria-hidden="true"></div>
+
+  <!-- Header -->
+  <header id="site-header">
+    <a class="brand" href="#" aria-label="Nova Student - Inicio">
+      <div class="logo-icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2L3 7l9 5 9-5-9-5z" fill="currentColor" opacity="0.9"/>
+          <path d="M3 12l9 5 9-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+          <path d="M3 17l9 5 9-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.5"/>
+        </svg>
+      </div>
+      <div style="display: flex; flex-direction: column; justify-content: center;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span class="brand-text">Nova <strong>Student</strong></span>
+          <span class="brand-badge">BETA</span>
+        </div>
+        <div class="live-indicator">
+          <span class="live-dot"></span> Radar Activo
+        </div>
+      </div>
+    </a>
+
+    <nav class="main-nav" role="navigation" aria-label="Navegación principal">
+      <button class="nav-btn active" data-view="discover" id="nav-discover">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <span>Descubrir</span>
+      </button>
+      <button class="nav-btn" data-view="saved" id="nav-saved">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        <span>Guardadas</span>
+        <span class="nav-badge" id="savedCount" hidden>0</span>
+      </button>
+      <button class="nav-btn" data-view="alerts" id="nav-alerts">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span>Alertas</span>
+      </button>
+      <button class="nav-btn" data-view="radar" id="nav-radar">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/><line x1="12" y1="2" x2="12" y2="4"/></svg>
+        <span>Radar</span>
+      </button>
+    </nav>
+
+    <div class="header-actions">
+      <button id="theme-toggle" class="icon-btn" title="Cambiar tema" aria-label="Cambiar tema claro/oscuro">
+        <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg class="moon-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+      <button class="btn-primary pulse-btn" id="createAlert-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Crear alerta
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero -->
+    <section class="hero" aria-labelledby="hero-heading">
+      <div class="hero-content">
+        <div class="eyebrow">
+          <span class="live-dot" aria-hidden="true"></span>
+          RADAR GLOBAL PARA ESTUDIANTES
+        </div>
+        <h1 id="hero-heading">
+          Tu correo educativo<br>
+          <em class="gradient-text">vale una fortuna.</em>
+        </h1>
+        <p class="hero-desc">
+          Descubre software gratis, créditos cloud, licencias premium y descuentos verificados.
+          <strong>Nova Student</strong> vigila el mundo estudiantil por ti.
+        </p>
+
+        <!-- Barra de búsqueda -->
+        <div class="search-container" role="search">
+          <div class="searchbar" id="searchbar">
+            <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input
+              id="q"
+              type="search"
+              placeholder="Busca: GitHub, Adobe, cloud, IA, diseño…"
+              autocomplete="off"
+              aria-label="Buscar beneficios estudiantiles"
+              spellcheck="false"
+            >
+            <button id="searchBtn" class="search-btn" aria-label="Buscar">
+              Buscar
+            </button>
+          </div>
+        </div>
+
+        <!-- Chips de búsqueda rápida -->
+        <div class="chips" role="group" aria-label="Búsquedas rápidas">
+          <button class="chip" data-q="IA" id="chip-ai">
+            <span>🤖</span> IA & ML
+          </button>
+          <button class="chip" data-q="cloud" id="chip-cloud">
+            <span>☁️</span> Cloud
+          </button>
+          <button class="chip" data-q="diseño" id="chip-design">
+            <span>🎨</span> Diseño
+          </button>
+          <button class="chip" data-q="developer" id="chip-dev">
+            <span>💻</span> Developer
+          </button>
+          <button class="chip" data-q="gratis" id="chip-free">
+            <span>🎁</span> Gratis
+          </button>
+          <button class="chip" data-q="productividad" id="chip-prod">
+            <span>⚡</span> Productividad
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="stats-section" aria-label="Estadísticas de la plataforma">
+      <div class="stats-grid">
+        <div class="stat-card" id="stat-offers">
+          <div class="stat-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          </div>
+          <div class="stat-value" id="sOffers">—</div>
+          <div class="stat-label">ofertas activas</div>
+        </div>
+        <div class="stat-card" id="stat-sources">
+          <div class="stat-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+          </div>
+          <div class="stat-value" id="sSources">—</div>
+          <div class="stat-label">fuentes vigiladas</div>
+        </div>
+        <div class="stat-card" id="stat-fresh">
+          <div class="stat-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          </div>
+          <div class="stat-value" id="sFresh">—</div>
+          <div class="stat-label">verificadas esta semana</div>
+        </div>
+        <div class="stat-card" id="stat-events">
+          <div class="stat-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div class="stat-value" id="sEvents">—</div>
+          <div class="stat-label">cambios detectados</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Categorías -->
+    <section class="categories-section" aria-label="Explorar por categoría">
+      <div class="section-header">
+        <div class="section-title-group">
+          <span class="section-label">Explorar</span>
+          <h2>Categorías</h2>
+        </div>
+      </div>
+      <div id="categoriesGrid" class="categories-grid" role="list" aria-label="Lista de categorías"></div>
+    </section>
+
+    <!-- Trending / Hot -->
+    <section id="trendingSection" class="trending-section" aria-label="Ofertas trending" hidden>
+      <div class="section-header">
+        <div class="section-title-group">
+          <span class="section-label">🔥 No te lo pierdas</span>
+          <h2>Trending & Imprescindibles</h2>
+        </div>
+      </div>
+      <div id="trendingGrid" class="offers-grid trending-grid" role="list" aria-label="Ofertas trending"></div>
+    </section>
+
+    <!-- Controles / Filtros -->
+    <section class="filters-section" aria-label="Filtros de búsqueda">
+      <div class="quick-tabs">
+        <button class="tab-btn active" data-tab="all">🌟 Todas</button>
+        <button class="tab-btn" data-tab="recent">✨ Recientes</button>
+        <button class="tab-btn" data-tab="hot">🔥 Destacadas</button>
+      </div>
+      <div class="filters-bar">
+        <div class="filter-group">
+          <label for="country" class="filter-label">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            País
+          </label>
+          <div class="select-wrapper">
+            <select id="country" aria-label="Filtrar por país">
+              <option value="ALL">Todos los países</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-group">
+          <label for="category" class="filter-label">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            Categoría
+          </label>
+          <div class="select-wrapper">
+            <select id="category" aria-label="Filtrar por categoría">
+              <option value="ALL">Todas</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-group">
+          <label for="verification" class="filter-label">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Verificación
+          </label>
+          <div class="select-wrapper">
+            <select id="verification" aria-label="Filtrar por método de verificación">
+              <option value="ALL">Cualquiera</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-actions">
+          <button id="clear" class="btn-ghost" aria-label="Limpiar todos los filtros">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Limpiar
+          </button>
+          <button id="createAlert" class="btn-primary" aria-label="Crear nueva alerta">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nueva alerta
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Vista: Descubrir -->
+    <section id="discover" class="view active" aria-label="Descubrir ofertas">
+      <div class="section-header">
+        <div class="section-title-group">
+          <span class="section-label">Resultados</span>
+          <h2 id="resultTitle">Beneficios destacados</h2>
+        </div>
+        <div class="section-meta">
+          <span id="count" class="results-count"></span>
+          <div class="view-toggle" role="group" aria-label="Vista de resultados">
+            <button class="view-btn active" id="gridViewBtn" title="Vista en cuadrícula" aria-pressed="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </button>
+            <button class="view-btn" id="listViewBtn" title="Vista en lista" aria-pressed="false">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="grid" class="offers-grid" role="list" aria-live="polite" aria-label="Lista de ofertas"></div>
+
+      <!-- Loading skeleton -->
+      <div id="loadingSkeleton" class="offers-grid skeleton-grid" aria-hidden="true">
+        <div class="card skeleton-card"><div class="skel-top"></div><div class="skel-badge"></div><div class="skel-title"></div><div class="skel-text"></div><div class="skel-text short"></div><div class="skel-meta"></div></div>
+        <div class="card skeleton-card"><div class="skel-top"></div><div class="skel-badge"></div><div class="skel-title"></div><div class="skel-text"></div><div class="skel-text short"></div><div class="skel-meta"></div></div>
+        <div class="card skeleton-card"><div class="skel-top"></div><div class="skel-badge"></div><div class="skel-title"></div><div class="skel-text"></div><div class="skel-text short"></div><div class="skel-meta"></div></div>
+      </div>
+
+      <!-- Descubrimientos no verificados -->
+      <div id="discoveriesWrap" class="discoveries-section" hidden>
+        <div class="section-header mini">
+          <div class="section-title-group">
+            <span class="section-label">Pistas nuevas del radar</span>
+            <h2>Descubrimientos por verificar</h2>
+          </div>
+          <span id="discoveryCount" class="results-count"></span>
+        </div>
+        <div id="discoveryList" class="source-list"></div>
+      </div>
+    </section>
+
+    <!-- Vista: Guardadas -->
+    <section id="saved" class="view" aria-label="Ofertas guardadas">
+      <div class="section-header">
+        <div class="section-title-group">
+          <span class="section-label">Tu lista personal</span>
+          <h2>Ofertas guardadas</h2>
+        </div>
+      </div>
+      <div id="savedGrid" class="offers-grid" role="list" aria-label="Ofertas guardadas"></div>
+    </section>
+
+    <!-- Vista: Alertas -->
+    <section id="alerts" class="view" aria-label="Gestión de alertas">
+      <div class="section-header">
+        <div class="section-title-group">
+          <span class="section-label">Automatización inteligente</span>
+          <h2>Alertas personalizadas</h2>
+        </div>
+      </div>
+
+      <div class="alerts-hero-card">
+        <div class="alerts-hero-content">
+          <div class="alerts-icon" aria-hidden="true">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </div>
+          <div>
+            <h3>No vuelvas a perderte ninguna oferta</h3>
+            <p>Configura alertas personalizadas por keyword, país o categoría. Te avisamos cuando Nova Student encuentre novedades que coincidan con tu perfil.</p>
+            <ul class="alerts-features">
+              <li>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Alertas instantáneas, diarias o semanales
+              </li>
+              <li>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Filtros por país, categoría y verificación
+              </li>
+              <li>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Sin spam — solo resultados relevantes
+              </li>
+            </ul>
+          </div>
+        </div>
+        <button id="alertCta" class="btn-primary btn-lg">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          Crear mi primera alerta
+        </button>
+      </div>
+
+      <div class="alerts-info-grid">
+        <div class="info-card">
+          <div class="info-card-icon">⚡</div>
+          <h4>Instantánea</h4>
+          <p>Te notificamos en cuanto el radar detecta una nueva oferta que encaja con tu criterio.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">📋</div>
+          <h4>Resumen diario</h4>
+          <p>Un correo al día con todas las novedades agrupadas y ordenadas por relevancia.</p>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">📅</div>
+          <h4>Resumen semanal</h4>
+          <p>El top de la semana en un solo correo. Ideal si no quieres saturar tu bandeja.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Vista: Radar -->
+    <section id="radar" class="view" aria-label="Radar de fuentes">
+      <div class="section-header">
+        <div class="section-title-group">
+          <span class="section-label">Inteligencia de fuentes</span>
+          <h2>Radar de descubrimiento</h2>
+        </div>
+        <span id="radarCount" class="results-count"></span>
+      </div>
+
+      <div class="radar-search">
+        <div class="radar-searchbar">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input id="radarQ" type="search" placeholder="Buscar fuente…" aria-label="Buscar en el radar">
+        </div>
+      </div>
+
+      <div class="radar-layout">
+        <div class="radar-panel">
+          <h3 class="panel-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            Fuentes vigiladas
+          </h3>
+          <div id="sourceList" class="source-list"></div>
+        </div>
+        <div class="radar-panel">
+          <h3 class="panel-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Cambios recientes
+          </h3>
+          <div id="eventList" class="event-list"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: Detalle de oferta -->
+  <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" hidden>
+    <div class="modal-backdrop" data-close aria-hidden="true"></div>
+    <div class="modal-panel">
+      <div class="modal-header">
+        <button class="modal-close" data-close aria-label="Cerrar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div id="modalContent" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Modal: Crear alerta -->
+  <div id="alertModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="alertModalTitle" hidden>
+    <div class="modal-backdrop" data-close-alert aria-hidden="true"></div>
+    <form id="alertForm" class="modal-panel modal-panel-sm" novalidate>
+      <div class="modal-header">
+        <button type="button" class="modal-close" data-close-alert aria-label="Cerrar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-kicker">ALERTA PERSONALIZADA</div>
+        <h2 id="alertModalTitle">Que Nova Student busque por ti</h2>
+        <p class="modal-desc">Recibe notificaciones solo con resultados que coincidan con tu perfil.</p>
+
+        <div class="form-field">
+          <label for="alertEmail">
+            Email
+            <span class="required" aria-label="requerido">*</span>
+          </label>
+          <input id="alertEmail" name="email" type="email" required placeholder="tu@universidad.edu" autocomplete="email">
+        </div>
+        <div class="form-field">
+          <label for="alertQuery">Palabra clave (opcional)</label>
+          <input id="alertQuery" name="query" type="text" placeholder="ej. GitHub, Adobe, cloud, IA…">
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label for="alertCountry">País</label>
+            <div class="select-wrapper">
+              <select id="alertCountry" name="country">
+                <option value="ALL">Todos</option>
+                <option value="CO">Colombia</option>
+                <option value="MX">México</option>
+                <option value="ES">España</option>
+                <option value="AR">Argentina</option>
+                <option value="BR">Brasil</option>
+                <option value="US">Estados Unidos</option>
+                <option value="GB">Reino Unido</option>
+                <option value="CL">Chile</option>
+                <option value="PE">Perú</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-field">
+            <label for="alertFrequency">Frecuencia</label>
+            <div class="select-wrapper">
+              <select id="alertFrequency" name="frequency">
+                <option value="instant">⚡ Instantánea</option>
+                <option value="daily" selected>📋 Resumen diario</option>
+                <option value="weekly">📅 Resumen semanal</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <input type="hidden" name="category" value="ALL">
+        <input type="hidden" name="verification" value="ALL">
+        <button type="submit" class="btn-primary btn-full" id="alertSubmitBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          Activar alerta
+        </button>
+        <div id="alertStatus" role="status" aria-live="polite"></div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Toast de notificaciones -->
+  <div id="toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true"></div>
+
+  <script src="/app.js?v=7" type="module"></script>
+</body>
+</html>

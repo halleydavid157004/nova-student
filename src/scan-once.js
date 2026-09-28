@@ -1,0 +1,1 @@
+import { migrate } from './db.js';import { scanAll,discoverAll } from './services/crawler.js';migrate();console.log(await discoverAll());console.table(await scanAll());

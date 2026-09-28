@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: nova-student-radar
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: SCAN_INTERVAL_MS
+        value: 1800000
+      - key: DIGEST_INTERVAL_MS
+        value: 300000
+      - key: STUDENTOFFERS_DISCOVERY
+        value: true
+      - key: BRAVE_SEARCH_API_KEY
+        sync: false

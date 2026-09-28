@@ -1,0 +1,23 @@
+NOVA STUDENT RADAR — INICIO RAPIDO EN WINDOWS
+
+1. Instala Node.js 20 LTS o superior si aun no lo tienes.
+2. Haz doble clic en INICIAR_NOVA_STUDENT.bat
+3. Tu navegador abrira http://localhost:4310
+
+La plataforma funciona sin npm install y sin dependencias externas.
+
+PARA EMAIL:
+- Copia .env.example a .env (el iniciador lo hace automaticamente).
+- Opcion recomendada: configura RESEND_API_KEY.
+- Con Gmail: activa verificacion en 2 pasos, crea una contraseña de aplicacion y coloca SMTP_USER y SMTP_PASS en .env.
+
+PARA BUSQUEDA AUTOMATICA DE FUENTES NUEVAS EN TODO EL MUNDO:
+- Configura BRAVE_SEARCH_API_KEY en .env.
+- Sin esa clave, Nova Student sigue revisando las fuentes oficiales incluidas.
+
+EXTENSION:
+- Chrome/Edge > Extensiones > Modo desarrollador > Cargar descomprimida > selecciona la carpeta extension.
+
+IMPORTANTE:
+- Cambia ADMIN_TOKEN antes de desplegar en Internet.
+- Para una version publica multiusuario conviene migrar la persistencia local a PostgreSQL/Supabase y añadir autenticacion.
