@@ -10,8 +10,8 @@
 const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
 const API_KEY = process.env.GROQ_API_KEY || '';
 const MODELS = [...new Set([
-  process.env.GROQ_MODEL || 'llama-3.1-70b-versatile',
-  ...(process.env.GROQ_FALLBACK_MODELS || 'llama-3.1-8b-instant, mixtral-8x7b-32768')
+  process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
+  ...(process.env.GROQ_FALLBACK_MODELS || 'qwen/qwen3.8-27b')
     .split(',').map(x => x.trim()).filter(Boolean),
 ])];
 let activeModel = MODELS[0];
