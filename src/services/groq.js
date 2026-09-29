@@ -16,6 +16,7 @@ const MODELS = [...new Set([
 ])];
 let activeModel = MODELS[0];
 let lastError = null;
+const modelCooldowns = new Map();
 
 // Valid categories matching CATEGORIES in seed.js
 const VALID_CATEGORIES = [
@@ -52,7 +53,12 @@ const rateLimiter = {
  */
 async function groqChat(messages, { temperature = 0.4, max_tokens = 1024, retries = 2 } = {}) {
   if (!API_KEY) throw new Error('GROQ_API_KEY not set');
-  const candidates = [activeModel, ...MODELS.filter(m => m !== activeModel)];
+  const candidates = [activeModel, ...MODELS.filter(m => m !== activeModel)]
+    .filter(m => (modelCooldowns.get(m) || 0) <= Date.now());
+  if (!candidates.length) {
+    lastError = 'rate_limited';
+    throw new Error('Groq models are temporarily rate limited');
+  }
   for (const model of candidates) {
     for (let attempt = 0; attempt <= retries; attempt++) {
       await rateLimiter.wait();
@@ -72,22 +78,14 @@ async function groqChat(messages, { temperature = 0.4, max_tokens = 1024, retrie
       }
 
       if (status === 429 || text.includes('Rate limit reached')) {
-          if (attempt < retries) {
-            let delay = 15000;
-            const seconds = Number(res.headers.get('retry-after'));
-            if (Number.isFinite(seconds) && seconds > 0) {
-              delay = Math.min(seconds * 1000, 15000);
-            } else {
-              const match = text.match(/try again in ([\d.]+)s/);
-              if (match) delay = Math.ceil(parseFloat(match[1])) * 1000;
-              else delay = 1000 * (attempt + 1);
-            }
-            console.log(`[Nova AI] Rate limited. Waiting ${delay/1000}s before retry ${attempt + 1}/${retries}...`);
-            await new Promise(r => setTimeout(r, delay));
-            continue;
-          }
           lastError = 'rate_limited';
-          throw Object.assign(new Error(`Groq API ${status}: ${text}`), { permanent: true });
+          const retryAfter = Number(res.headers.get('retry-after'));
+          const match = text.match(/try again in ([\d.]+)s/i);
+          const seconds = Number.isFinite(retryAfter) && retryAfter > 0
+            ? retryAfter : match ? Number(match[1]) : 60;
+          modelCooldowns.set(model, Date.now() + Math.min(Math.max(seconds, 1), 300) * 1000);
+          console.warn(`[Nova AI] Model ${model} rate limited; trying another configured model.`);
+          break;
       }
 
       if (!res.ok) {
@@ -125,7 +123,8 @@ async function groqChat(messages, { temperature = 0.4, max_tokens = 1024, retrie
       }
     }
   }
-  throw new Error('No configured Groq model is available');
+  lastError ||= 'model_unavailable';
+  throw new Error(`No configured Groq model is available (${lastError})`);
 }
 
 /* ═══════════════════════════════════════════
