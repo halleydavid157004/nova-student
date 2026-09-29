@@ -58,11 +58,13 @@ Los favoritos se guardan en el navegador de cada visitante. La base JSON local d
      updated_at timestamptz not null default now()
    );
    alter table public.nova_state enable row level security;
-   revoke all on public.nova_state from anon, authenticated;
+   revoke all on public.nova_state from public, anon, authenticated, service_role;
    grant select, insert, update on public.nova_state to service_role;
    ```
 
-2. En el servicio **Free** existente de Render, agrega `SUPABASE_URL` con la URL HTTPS del proyecto y `SUPABASE_SECRET_KEY` con una clave nueva que empiece por `sb_secret_` (**Settings → API Keys** en Supabase). Guárdala solo como variable secreta del servidor; no la compartas por chat ni la pongas en GitHub o en el navegador. Mantén `DATABASE_PATH` sin cambiar y el plan de Render en Free.
+   También puedes ejecutar [docs/supabase-setup.sql](docs/supabase-setup.sql), que incluye la comprobación de permisos. [docs/supabase-verify.sql](docs/supabase-verify.sql) prueba lectura, inserción y actualización con `service_role` dentro de una transacción que se revierte; no deja datos de prueba. Ejecútalo antes de iniciar el servidor. La Data API debe estar activada y exponer el esquema `public`. Los permisos explícitos de `service_role` permiten el acceso del backend; `nova_state` no necesita permisos para `anon` ni `authenticated`. Mantén desactivada la exposición automática de nuevas tablas.
+
+2. En el servicio **Free** existente de Render, agrega `SUPABASE_URL` con la URL HTTPS del proyecto y `SUPABASE_SECRET_KEY` con una clave que empiece por `sb_secret_` (**Settings → API Keys** en Supabase). Guárdala solo como variable secreta del servidor; no la compartas por chat ni la pongas en GitHub o en el navegador. Mantén `DATABASE_PATH` sin cambiar y el plan de Render en Free.
 3. Despliega el último commit de `main`. Abre `/api/health`: `storage.provider` debe ser `supabase`, `ready: true`, `synced: true` y `error: false`. Si falta una variable, la tabla no existe o Supabase no responde, el servidor no arranca con una base temporal: revisa los registros y la configuración.
 
 En el primer arranque de una tabla vacía se cargan las fichas semilla. Una copia privada anterior se puede importar **antes** de ese primer arranque con `SEED_DATABASE_PATH` apuntando a un JSON accesible solo por el servidor; los datos temporales de Render no se transfieren solos. En Supabase Free hay 500 MB de base, 5 GB de salida incluidos, pausas por poca actividad y no hay copias automáticas. Descarga copias privadas periódicas de la fila `nova_state` desde el panel de Supabase; evita publicar la fila porque puede contener correos de suscriptores. Esta modalidad guarda una instantánea desde **un solo proceso escritor**: no ejecutes `npm run scan` en otra máquina contra la misma tabla ni escales a varias instancias. El worker de Render Free solo funciona mientras el servicio está despierto y no garantiza escaneos continuos.
