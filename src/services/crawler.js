@@ -355,7 +355,8 @@ export async function scanAll() {
   const out = [];
   const sources = db.sources.filter(x => x.enabled);
   const batchSize = Math.max(1, Math.min(250, Number(process.env.SCAN_BATCH_SIZE)||100));
-  const start = scanAll.cursor % Math.max(1,sources.length);
+  const cursor = Number.isSafeInteger(scanAll.cursor) ? scanAll.cursor : 0;
+  const start = cursor % Math.max(1,sources.length);
   const batch = Array.from({length: Math.min(batchSize,sources.length)},(_,i)=>sources[(start+i)%sources.length]);
   scanAll.cursor = start + batch.length;
   console.log(`[Scan] Checking ${batch.length} of ${sources.length} sources…`);
