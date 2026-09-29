@@ -35,3 +35,20 @@ test('Groq reports authentication failure without cycling through models',async(
     assert.equal(aiStatus().error,'authentication');
   } finally {globalThis.fetch=original;}
 });
+
+test('Groq switches models promptly on a per-model daily token limit',async()=>{
+  const original=globalThis.fetch;
+  const calls=[];
+  globalThis.fetch=async (_url,options)=>{
+    const {model}=JSON.parse(options.body); calls.push(model);
+    if(model==='openai/gpt-oss-20b')return new Response(JSON.stringify({error:{message:'Rate limit reached for model on tokens per day. Please try again in 60s.'}}),{status:429});
+    return Response.json({choices:[{message:{content:'Alternativa disponible'}}]});
+  };
+  try {
+    const reply=await chatWithNova('Opciones de estudio',[]);
+    assert.equal(reply,'Alternativa disponible');
+    assert.deepEqual(calls,['openai/gpt-oss-20b','unavailable-model']);
+    assert.equal(aiStatus().model,'unavailable-model');
+    assert.equal(aiStatus().error,null);
+  } finally {globalThis.fetch=original;}
+});
