@@ -41,8 +41,8 @@ export const OFFERS = [
     summary:'Todos los IDEs profesionales de JetBrains 100% gratis para estudiantes.',
     benefit:'IntelliJ IDEA Ultimate, PyCharm Pro, WebStorm, GoLand, DataGrip, CLion, Rider, RubyMine, PhpStorm — gratis mientras seas estudiante.',
     category:'Development', offer_type:'free', countries:['GLOBAL'],
-    requirements:['Ser estudiante o profesor activo','Verificar por correo .edu, ISIC, documento o GitHub Education'],
-    steps:['Ve a jetbrains.com/community/education/#students','Elige Apply now','Verifica con correo educativo o GitHub Education','Activa los productos en tu cuenta JetBrains','Renueva cada año'],
+    requirements:['Ser estudiante o profesor activo','Verificar con correo institucional admitido, carné ISIC/ITIC o GitHub Student Developer Pack; JetBrains ya no acepta documentos escolares como método independiente'],
+    steps:['Ve a jetbrains.com/community/education/#students','Elige Apply now','Selecciona correo institucional, ISIC/ITIC o GitHub Student Developer Pack según tu caso','Activa los productos en tu cuenta JetBrains','Renueva cada año si sigues cumpliendo los requisitos'],
     verification:'Education verification', source_url:'https://www.jetbrains.com/community/education/#students', official:true, confidence:99,
     requires_card:false, commercial_use:'no', tags:['must-have']
   },

@@ -18,3 +18,12 @@ test('seed uses the current ChatGPT student promotion and excludes unsupported A
     assert.equal(OFFERS.some(o=>o.slug===slug),false);
   }
 });
+
+test('JetBrains seed lists the current eligibility methods',()=>{
+  const offer=OFFERS.find(o=>o.slug==='jetbrains-student-pack');
+  const requirements=offer.requirements.join(' ');
+  assert.match(requirements,/correo institucional/);
+  assert.match(requirements,/ISIC\/ITIC/);
+  assert.match(requirements,/GitHub Student Developer Pack/);
+  assert.match(requirements,/ya no acepta documentos escolares/);
+});
