@@ -205,8 +205,26 @@ Responde en JSON (sin markdown):
 export async function chatWithNova(userMessage, offers = []) {
   if (!enabled()) return 'Lo siento, el asistente Nova AI no está configurado. Contacta al administrador.';
 
-  // Build context from top offers (limit to keep tokens low)
-  const topOffers = offers.slice(0, 15).map((o, i) =>
+  // Smart Context: Score and sort offers based on relevance to the user's message
+  const userWords = userMessage.toLowerCase().replace(/[^a-z0-9áéíóúñ]/g, ' ').split(/\s+/).filter(w => w.length > 2);
+  
+  const scoredOffers = offers.map(o => {
+    let score = o.confidence || 0;
+    const searchableText = `${o.title} ${o.brand} ${o.category} ${o.summary}`.toLowerCase();
+    
+    // Boost score if words from the user's message appear in the offer
+    for (const word of userWords) {
+      if (searchableText.includes(word)) {
+        score += 500; // Massive boost for direct keyword hits (e.g. "amazon")
+      }
+    }
+    return { ...o, score };
+  });
+
+  // Sort by score (descending) and take the top 15 most relevant offers
+  scoredOffers.sort((a, b) => b.score - a.score);
+
+  const topOffers = scoredOffers.slice(0, 15).map((o, i) =>
     `${i + 1}. ${o.title} | ${o.category} | ${o.offer_type} | ${o.summary || ''} | URL: ${o.source_url || 'N/A'}`
   ).join('\n');
 
