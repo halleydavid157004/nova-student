@@ -13,7 +13,7 @@
 
 import crypto from 'node:crypto';
 import { db, save, id } from '../db.js';
-import { extractOfferWithAI, aiEnabled } from './groq.js';
+import { extractOfferWithAI, aiEnabled, discoverWithGroq } from './groq.js';
 
 const ua = 'Mozilla/5.0 (compatible; NovaStudentRadar/2.0; +https://github.com/nova-student-radar)';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -615,13 +615,45 @@ export async function discoverAll() {
   const brave = await discoverWithBrave();
   await sleep(500);
 
+  let groqFallback = { discovered: 0 };
+  // Fallback if Brave failed or found nothing (e.g. out of quota)
+  if ((!brave.enabled || brave.discovered === 0 || brave.error) && aiEnabled()) {
+    console.log(`[Discovery] Brave quota exhausted or failed. Activating Groq AI Fallback Discovery…`);
+    const topics = ['software developers', 'cloud platforms', 'design tools', 'streaming services', 'ai services'];
+    const randomTopic = topics[Math.floor(Math.random() * topics.length)];
+    const urls = await discoverWithGroq(randomTopic);
+    let added = 0;
+    
+    for (const url of urls) {
+      try {
+        const dom = new URL(url).hostname.replace(/^www\./, '');
+        if (db.sources.some(x => x.domain === dom || x.url === url)) continue;
+        
+        const s = {
+          id: id('sources'),
+          name: \`AI Discovered: \${dom}\`,
+          url, domain: dom, category: 'Education',
+          countries: ['GLOBAL'],
+          enabled: true, official: false,
+          last_checked_at: null, last_hash: null, last_status: null, last_error: null,
+          discovered_via: 'Groq AI Knowledge Base',
+        };
+        db.sources.push(s);
+        added++;
+      } catch { /* skip */ }
+    }
+    save();
+    groqFallback.discovered = added;
+    console.log(`[Discovery] Groq AI Fallback found ${added} new sources.`);
+  }
+
   const github = await discoverGitHubPartners();
 
-  const totalDiscovered = (studentOffers.discovered || 0) + (brave.discovered || 0) + (github.discovered || 0);
+  const totalDiscovered = (studentOffers.discovered || 0) + (brave.discovered || 0) + (groqFallback.discovered || 0) + (github.discovered || 0);
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
 
   console.log(`[Discovery] Complete in ${elapsed}s. Total new sources: ${totalDiscovered}`);
-  console.log(`  └─ StudentOffers: ${studentOffers.discovered || 0}, Brave: ${brave.discovered || 0}, GitHub: ${github.discovered || 0}`);
+  console.log(`  └─ StudentOffers: ${studentOffers.discovered || 0}, Brave: ${brave.discovered || 0}, Groq: ${groqFallback.discovered || 0}, GitHub: ${github.discovered || 0}`);
 
   // Log summary event
   if (totalDiscovered > 0) {
@@ -629,11 +661,11 @@ export async function discoverAll() {
       id: id('events'),
       type: 'discovery_cycle',
       title: `Ciclo de descubrimiento: ${totalDiscovered} nuevas fuentes`,
-      details: { studentOffers: studentOffers.discovered, brave: brave.discovered, github: github.discovered, elapsed },
+      details: { studentOffers: studentOffers.discovered, brave: brave.discovered, groq: groqFallback.discovered, github: github.discovered, elapsed },
       created_at: new Date().toISOString(),
     });
     save();
   }
 
-  return { studentOffers, brave, github, discovered: totalDiscovered };
+  return { studentOffers, brave, groqFallback, github, discovered: totalDiscovered };
 }

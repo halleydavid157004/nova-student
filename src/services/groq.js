@@ -233,4 +233,32 @@ REGLAS:
   }
 }
 
+/* ═══════════════════════════════════════════
+   4. FALLBACK DISCOVERY (KNOWLEDGE BASE)
+   ═══════════════════════════════════════════ */
+
+export async function discoverWithGroq(topic = 'software') {
+  if (!enabled()) return [];
+  try {
+    const prompt = `Actúa como una API de búsqueda. Devuelve una lista de 5 URLs EXACTAS Y REALES de páginas web oficiales que ofrezcan descuentos, licencias gratis o beneficios para ESTUDIANTES universitarios relacionados con: ${topic}. 
+No inventes URLs. Usa páginas famosas y reales.
+Responde ÚNICAMENTE con un arreglo JSON de strings de las URLs. Ningún otro texto.
+Ejemplo: ["https://spotify.com/student", "https://aws.amazon.com/education/awseducate/"]`;
+
+    const answer = await groqChat([
+      { role: 'system', content: 'Eres un motor de búsqueda JSON. Solo devuelves arrays de URLs válidas.' },
+      { role: 'user', content: prompt }
+    ], { temperature: 0.7, max_tokens: 300 });
+
+    const jsonMatch = answer.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return [];
+    
+    const urls = JSON.parse(jsonMatch[0]);
+    return urls.filter(u => u.startsWith('http'));
+  } catch (e) {
+    console.error('[Nova AI] Fallback discovery error:', e.message);
+    return [];
+  }
+}
+
 export { enabled as aiEnabled };
