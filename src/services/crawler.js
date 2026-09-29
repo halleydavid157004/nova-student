@@ -130,6 +130,9 @@ export function extractOfferFromText(text, url, sourceName = '') {
     'offer', 'deal', 'save', 'off', 'trial', 'pricing'].reduce((s, k) => s + (low.includes(k) ? 1 : 0), 0);
   if (offerScore < 1) return null;
 
+  // Filter out listicles, blogs, and guides from being extracted by Regex
+  if (/(top\s*\d+|best|mejores|deals|descuentos para|lista|guía|blog)/i.test(sourceName)) return null;
+
   let domain;
   try { domain = new URL(url).hostname.replace(/^www\./, ''); } catch { return null; }
 
@@ -270,15 +273,38 @@ export async function scanSource(source) {
         const hasOfferKeywords = ['free', 'discount', 'gratis', 'credits'].some(k => low.includes(k));
         if (hasStudentKeywords && hasOfferKeywords) {
           try {
-            const aiResult = await extractOfferWithAI(text, source.url);
+            let aiResult = await extractOfferWithAI(text, source.url);
+            
+            // If AI requested a real-time search to find the official URL
+            if (aiResult && aiResult.needs_search) {
+              try {
+                const key = process.env.BRAVE_SEARCH_API_KEY;
+                if (key) {
+                  const u = new URL('https://api.search.brave.com/res/v1/web/search');
+                  u.searchParams.set('q', aiResult.needs_search);
+                  u.searchParams.set('count', '1');
+                  const sr = await fetch(u, { headers: { 'X-Subscription-Token': key, Accept: 'application/json' }});
+                  if (sr.ok) {
+                    const sj = await sr.json();
+                    if (sj.web?.results?.[0]?.url) {
+                      aiResult.source_url = sj.web.results[0].url;
+                      aiResult.source_domain = new URL(aiResult.source_url).hostname.replace(/^www\./, '');
+                      console.log(`[Nova AI] 🔍 Live Search found official URL: ${aiResult.source_url}`);
+                    } else { aiResult = null; } // Discard if no real result
+                  } else { aiResult = null; }
+                } else { aiResult = null; }
+              } catch(e) { aiResult = null; }
+            }
+
             if (aiResult) {
+              delete aiResult.needs_search;
               extracted = {
-                slug: `ai-${hash(source.url).slice(0, 12)}`,
+                slug: `ai-${hash(aiResult.source_url || source.url).slice(0, 12)}`,
                 ...aiResult,
                 verification: guessVerification(text),
                 official: false,
                 auto_discovered: true,
-                discovered_via: 'Nova AI + Brave Search',
+                discovered_via: 'Nova AI + Live Search',
                 tags: ['discovered', 'ai-extracted'],
               };
             }
@@ -510,7 +536,9 @@ export async function discoverWithBrave() {
           // Skip if already known
           if (db.sources.some(x => x.url === url || x.domain === dom)) continue;
           // Skip aggregator/news sites (we want direct sources)
-          if (/(reddit\.com|twitter\.com|facebook\.com|wikipedia\.org|quora\.com)/i.test(dom)) continue;
+          if (/(reddit\.com|twitter\.com|facebook\.com|wikipedia\.org|quora\.com|medium\.com|forbes\.com)/i.test(dom)) continue;
+          // Skip if URL explicitly says it's a blog, article, or listicle
+          if (/(blog|article|news|top-|best-|deals-|review)/i.test(url)) continue;
 
           const category = guessCategory(combined);
           const s = {

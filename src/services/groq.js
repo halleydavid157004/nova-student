@@ -95,20 +95,26 @@ export async function extractOfferWithAI(rawText, url) {
   let domain;
   try { domain = new URL(url).hostname.replace(/^www\./, ''); } catch { return null; }
 
-  const prompt = `Analiza este texto de "${domain}" y determina si contiene una oferta real para ESTUDIANTES.
+  const prompt = `Analiza este texto extraído de "${domain}" y determina si contiene una oferta real para ESTUDIANTES.
 
-Si NO es oferta legítima para estudiantes, responde: NO_OFFER
+REGLAS:
+1. El usuario quiere enlaces DIRECTOS a la oferta oficial de la marca, no artículos de blog.
+2. Si el texto es un blog pero menciona el enlace oficial directo, extráelo en "direct_url".
+3. Si el texto habla de una oferta real pero NO tiene el enlace oficial, responde solicitando una búsqueda en vivo para encontrarlo, usando "needs_search": "NombreMarca student discount".
+4. Si NO es una oferta para estudiantes, responde: NO_OFFER
 
-Si SÍ, responde en JSON exacto (sin markdown):
+Responde en JSON exacto (sin markdown):
 {
-  "brand": "Nombre empresa",
-  "title": "Qué obtienen gratis/descuento (max 60 chars)",
-  "summary": "Beneficio concreto en 1 línea (max 100 chars)",
+  "brand": "Nombre oficial de la empresa",
+  "title": "Qué obtienen gratis/descuento",
+  "summary": "Beneficio concreto",
   "category": "UNA de: ${VALID_CATEGORIES.join(', ')}",
-  "offer_type": "UNA de: free, discount, credits, bundle, trial",
+  "offer_type": "free o discount",
   "countries": ["GLOBAL"],
   "requires_card": false,
-  "steps": ["Paso 1", "Paso 2", "Paso 3"],
+  "steps": ["Paso 1", "Paso 2"],
+  "direct_url": "https://url-oficial.com/student",
+  "needs_search": "Búsqueda a realizar si no hay direct_url (opcional)",
   "confidence": 80
 }
 
@@ -147,8 +153,9 @@ ${trimmed}`;
       requires_card: !!parsed.requires_card,
       steps: parsed.steps || ['Visita el enlace oficial', 'Verifica tu condición de estudiante', 'Activa la oferta'],
       confidence: Math.min(100, Math.max(30, Number(parsed.confidence) || 70)),
-      source_domain: domain,
-      source_url: url,
+      source_domain: parsed.direct_url ? new URL(parsed.direct_url).hostname.replace(/^www\./, '') : domain,
+      source_url: parsed.direct_url || url,
+      needs_search: parsed.needs_search || null,
     };
   } catch (e) {
     console.error('[Nova AI] Extraction error:', e.message);
@@ -199,7 +206,7 @@ export async function chatWithNova(userMessage, offers = []) {
   if (!enabled()) return 'Lo siento, el asistente Nova AI no está configurado. Contacta al administrador.';
 
   // Build context from top offers (limit to keep tokens low)
-  const topOffers = offers.slice(0, 30).map((o, i) =>
+  const topOffers = offers.slice(0, 15).map((o, i) =>
     `${i + 1}. ${o.title} | ${o.category} | ${o.offer_type} | ${o.summary || ''} | URL: ${o.source_url || 'N/A'}`
   ).join('\n');
 
