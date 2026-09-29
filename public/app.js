@@ -845,6 +845,122 @@ async function init() {
   // Ocultar skeletons de carga
   const skeleton = $('#loadingSkeleton');
   if (skeleton) skeleton.style.display = 'none';
+
+  // ── Nova AI Chat Widget ──
+  initNovaAI();
+}
+
+/* ============================================
+   NOVA AI CHAT ASSISTANT
+   ============================================ */
+function initNovaAI() {
+  const fab = $('#nova-ai-fab');
+  const panel = $('#nova-ai-panel');
+  const closeBtn = $('#nova-ai-close');
+  const form = $('#nova-ai-form');
+  const input = $('#nova-ai-input');
+  const messages = $('#nova-ai-messages');
+  if (!fab || !panel) return;
+
+  let isOpen = false;
+
+  function togglePanel() {
+    isOpen = !isOpen;
+    panel.style.display = isOpen ? 'flex' : 'none';
+    if (isOpen) input.focus();
+  }
+
+  fab.addEventListener('click', togglePanel);
+  closeBtn.addEventListener('click', togglePanel);
+
+  // Escape key closes panel
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && isOpen) togglePanel();
+  });
+
+  function addMessage(content, type = 'bot') {
+    const msg = document.createElement('div');
+    msg.className = `nova-ai-msg nova-ai-msg-${type}`;
+    msg.innerHTML = `
+      <div class="nova-ai-msg-avatar">${type === 'bot' ? '✦' : '👤'}</div>
+      <div class="nova-ai-msg-body">${content}</div>
+    `;
+    messages.appendChild(msg);
+    messages.scrollTop = messages.scrollHeight;
+    return msg;
+  }
+
+  function addTyping() {
+    const typing = document.createElement('div');
+    typing.className = 'nova-ai-msg nova-ai-msg-bot';
+    typing.id = 'nova-ai-typing';
+    typing.innerHTML = `
+      <div class="nova-ai-msg-avatar">✦</div>
+      <div class="nova-ai-msg-body"><div class="nova-ai-typing"><span></span><span></span><span></span></div></div>
+    `;
+    messages.appendChild(typing);
+    messages.scrollTop = messages.scrollHeight;
+    return typing;
+  }
+
+  function removeTyping() {
+    const t = $('#nova-ai-typing');
+    if (t) t.remove();
+  }
+
+  // Format markdown-like text into HTML
+  function formatResponse(text) {
+    return text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`(.*?)`/g, '<code style="background:rgba(124,58,237,0.15);padding:1px 4px;border-radius:4px;font-size:12px;">$1</code>')
+      .replace(/\n/g, '<br>');
+  }
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const userMsg = input.value.trim();
+    if (!userMsg) return;
+
+    input.value = '';
+    addMessage(esc(userMsg), 'user');
+
+    const sendBtn = form.querySelector('.nova-ai-send');
+    sendBtn.disabled = true;
+    input.disabled = true;
+    addTyping();
+
+    try {
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMsg }),
+      });
+      const data = await res.json();
+      removeTyping();
+
+      if (data.reply) {
+        addMessage(formatResponse(data.reply), 'bot');
+      } else {
+        addMessage('No pude generar una respuesta. Inténtalo de nuevo.', 'bot');
+      }
+    } catch (err) {
+      removeTyping();
+      addMessage('Error de conexión. Verifica que el servidor esté activo.', 'bot');
+    } finally {
+      sendBtn.disabled = false;
+      input.disabled = false;
+      input.focus();
+    }
+  });
+
+  // Check AI status
+  fetch('/api/ai/status').then(r => r.json()).then(data => {
+    if (data.enabled) {
+      const label = $('#nova-ai-model-label');
+      if (label) label.textContent = data.model;
+    }
+  }).catch(() => {});
 }
 
 init().catch(console.error);

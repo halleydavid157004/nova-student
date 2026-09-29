@@ -13,6 +13,7 @@
 
 import crypto from 'node:crypto';
 import { db, save, id } from '../db.js';
+import { extractOfferWithAI, aiEnabled } from './groq.js';
 
 const ua = 'Mozilla/5.0 (compatible; NovaStudentRadar/2.0; +https://github.com/nova-student-radar)';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -259,7 +260,32 @@ export async function scanSource(source) {
     // Try to auto-extract new offer if source has no linked offer
     const hasOffer = db.offers.some(o => o.source_url === source.url);
     if (!hasOffer && text.length > 200) {
-      const extracted = extractOfferFromText(text, source.url, source.name);
+      // Use AI-powered extraction when Groq is available
+      let extracted = null;
+      if (aiEnabled()) {
+        try {
+          const aiResult = await extractOfferWithAI(text, source.url);
+          if (aiResult) {
+            extracted = {
+              slug: `ai-${hash(source.url).slice(0, 12)}`,
+              ...aiResult,
+              verification: guessVerification(text),
+              official: false,
+              auto_discovered: true,
+              discovered_via: 'Nova AI + Brave Search',
+              tags: ['discovered', 'ai-extracted'],
+            };
+          }
+        } catch (e) {
+          console.error('[Nova AI] Extraction failed, falling back:', e.message);
+        }
+      }
+
+      // Fallback to regex-based extraction
+      if (!extracted) {
+        extracted = extractOfferFromText(text, source.url, source.name);
+      }
+
       if (extracted) {
         const exists = db.offers.some(o => o.slug === extracted.slug || o.source_url === source.url || o.source_domain === extracted.source_domain);
         if (!exists) {
@@ -280,7 +306,7 @@ export async function scanSource(source) {
             details: { url: source.url, category: extracted.category, brand: extracted.brand },
             created_at: now,
           });
-          console.log(`[Discovery] Auto-created offer: ${extracted.title}`);
+          console.log(`[Discovery] ${aiEnabled() ? '🧠 AI' : '📝 Regex'} offer: ${extracted.title}`);
         }
       }
     }
