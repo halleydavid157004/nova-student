@@ -1,4 +1,4 @@
-import { db, migrate, save, id } from './db.js';
+import { db, migrate, save, flushSave, id } from './db.js';
 import { OFFERS, SOURCES } from './data/seed.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,7 +18,8 @@ return {offers:db.offers.length,sources:db.sources.length};
 }
 
 if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  migrate();
+  await migrate();
   const result=seedDatabase();
+  await flushSave();
   console.log(`Seed complete: ${result.offers} offers, ${result.sources} sources.`);
 }
