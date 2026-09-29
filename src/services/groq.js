@@ -34,7 +34,8 @@ export function aiStatus() {
    ═══════════════════════════════════════════ */
 const rateLimiter = {
   lastCall: 0,
-  minDelay: Math.max(0, Number(process.env.GROQ_MIN_DELAY_MS ?? 4000)),
+<<<<<<< HEAD
+  minDelay: Math.max(0, Number(process.env.GROQ_MIN_DELAY_MS ?? 12000)),
   queue: Promise.resolve(),
   async wait() {
     const turn = this.queue.then(async () => {
@@ -64,31 +65,55 @@ async function groqChat(messages, { temperature = 0.4, max_tokens = 1024, retrie
           ...(model.startsWith('openai/gpt-oss-') ? {reasoning_effort:'low'} : {}) }),
         signal: AbortSignal.timeout(30000),
       });
-      if (!res.ok) {
-        const detail = await res.text().catch(() => '');
-        if ([400,403,404].includes(res.status) && /model|decommission|unsupported|permission|blocked/i.test(detail)) {
-          console.warn(`[Nova AI] Model ${model} unavailable; trying next configured model.`);
-          lastError = 'model_unavailable';
-          break;
-        }
-        if (res.status === 401 || res.status === 403) {
-          lastError = 'authentication';
-          throw Object.assign(new Error('Groq authentication failed'), { permanent: true });
-        }
-        if (res.status === 429 || res.status >= 500) {
+
+      const status = res.status;
+      let text = '';
+      if (!res.ok || status === 429) {
+          text = await res.text().catch(() => '');
+      }
+
+      if (status === 429 || text.includes('Rate limit reached')) {
           if (attempt < retries) {
+            let delay = 15000;
             const seconds = Number(res.headers.get('retry-after'));
-            const delay = Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds * 1000, 15000) : 1000 * (attempt + 1);
+            if (Number.isFinite(seconds) && seconds > 0) {
+              delay = Math.min(seconds * 1000, 15000);
+            } else {
+              const match = text.match(/try again in ([\d.]+)s/);
+              if (match) delay = Math.ceil(parseFloat(match[1])) * 1000;
+              else delay = 1000 * (attempt + 1);
+            }
+            console.log(`[Nova AI] Rate limited. Waiting ${delay/1000}s before retry ${attempt + 1}/${retries}...`);
             await new Promise(r => setTimeout(r, delay));
             continue;
           }
-          lastError = res.status === 429 ? 'rate_limited' : 'provider_unavailable';
-          throw Object.assign(new Error(`Groq API ${res.status}`), { permanent: true });
+          lastError = 'rate_limited';
+          throw Object.assign(new Error(`Groq API ${status}: ${text}`), { permanent: true });
+      }
+
+      if (!res.ok) {
+        if ([400,403,404].includes(status) && /model|decommission|unsupported|permission|blocked/i.test(text)) {
+          console.warn(`[Nova AI] Model ${model} unavailable; trying next configured model.`);
+          lastError = 'model_unavailable';
+          break; // break retry loop to try next model
+        }
+        if (status === 401 || status === 403) {
+          lastError = 'authentication';
+          throw Object.assign(new Error('Groq authentication failed'), { permanent: true });
+        }
+        if (status >= 500) {
+          if (attempt < retries) {
+            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            continue;
+          }
+          lastError = 'provider_unavailable';
+          throw Object.assign(new Error(`Groq API ${status}`), { permanent: true });
         }
         lastError = 'provider_error';
-        throw Object.assign(new Error(`Groq API ${res.status}`), { permanent: true });
+        throw Object.assign(new Error(`Groq API ${status}: ${text}`), { permanent: true });
       }
-      const data = await res.json();
+
+      const data = text ? JSON.parse(text) : await res.json();
       activeModel = model;
       lastError = null;
       return data.choices?.[0]?.message?.content?.trim() || '';
