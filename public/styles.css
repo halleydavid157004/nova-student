@@ -2275,6 +2275,7 @@ body.dark .source-state.err { background: rgba(248,113,113,0.12); color: #f87171
 /* Messages Area */
 .nova-ai-messages {
   flex: 1;
+  min-width: 0;
   overflow-y: auto;
   padding: 16px;
   display: flex;
@@ -2290,6 +2291,7 @@ body.dark .source-state.err { background: rgba(248,113,113,0.12); color: #f87171
 .nova-ai-msg {
   display: flex;
   gap: 10px;
+  min-width: 0;
   max-width: 92%;
   animation: msg-in 0.3s ease-out;
 }
@@ -2319,6 +2321,8 @@ body.dark .source-state.err { background: rgba(248,113,113,0.12); color: #f87171
 }
 
 .nova-ai-msg-body {
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding: 10px 14px;
   border-radius: 14px;
   font-size: 13px;
@@ -2372,6 +2376,7 @@ body.dark .source-state.err { background: rgba(248,113,113,0.12); color: #f87171
 
 .nova-ai-input {
   flex: 1;
+  min-width: 0;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(124, 58, 237, 0.2);
   border-radius: 12px;
