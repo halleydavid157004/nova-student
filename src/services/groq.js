@@ -9,7 +9,7 @@
 
 const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
 const API_KEY = process.env.GROQ_API_KEY || '';
-const MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+const MODEL = 'openai/gpt-oss-20b';
 
 // Valid categories matching CATEGORIES in seed.js
 const VALID_CATEGORIES = [
