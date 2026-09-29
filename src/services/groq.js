@@ -34,7 +34,6 @@ export function aiStatus() {
    ═══════════════════════════════════════════ */
 const rateLimiter = {
   lastCall: 0,
-<<<<<<< HEAD
   minDelay: Math.max(0, Number(process.env.GROQ_MIN_DELAY_MS ?? 12000)),
   queue: Promise.resolve(),
   async wait() {
