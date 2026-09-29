@@ -7,7 +7,7 @@ export function seedDatabase(){
 const now=new Date().toISOString();
 for(const o of OFFERS){
   const existing=db.offers.find(x=>x.slug===o.slug);
-  const row={...o,source_domain:new URL(o.source_url).hostname.replace(/^www\./,''),status:'active',discovered_at:existing?.discovered_at||now,verified_at:'2026-09-28T00:00:00.000Z',updated_at:now,source_hash:existing?.source_hash||null,source_excerpt:existing?.source_excerpt||null};
+  const row={...o,source_domain:new URL(o.source_url).hostname.replace(/^www\./,''),status:o.status||'active',discovered_at:existing?.discovered_at||now,verified_at:o.status==='pending'?null:o.verified_at||'2026-09-28T00:00:00.000Z',updated_at:now,source_hash:existing?.source_hash||null,source_excerpt:existing?.source_excerpt||null};
   if(existing) Object.assign(existing,row); else db.offers.push({id:id('offers'),...row});
 }
 for(const [name,url,category,countries] of SOURCES){
@@ -15,6 +15,20 @@ for(const [name,url,category,countries] of SOURCES){
 }
 save();
 return {offers:db.offers.length,sources:db.sources.length};
+}
+
+// Apply curated corrections to existing storage once without replacing user data.
+export function applyCatalogCorrections(){
+  let changed=0;
+  for(const o of OFFERS){
+    if(!o.catalog_revision)continue;
+    const existing=db.offers.find(x=>x.slug===o.slug);
+    if(!existing||existing.catalog_revision===o.catalog_revision)continue;
+    Object.assign(existing,o,{source_domain:new URL(o.source_url).hostname.replace(/^www\./,''),status:o.status||existing.status||'active',updated_at:new Date().toISOString()});
+    changed++;
+  }
+  if(changed)save();
+  return changed;
 }
 
 if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
