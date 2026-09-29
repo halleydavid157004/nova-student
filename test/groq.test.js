@@ -16,10 +16,13 @@ test('Groq switches when a model is blocked and reports the model actually used'
     return Response.json({choices:[{message:{content:'Prueba correcta'}}]});
   };
   try {
-    const response=await chatWithNova('Ofertas de diseño',[]);
+    const response=await chatWithNova('Ofertas de diseño',[{title:'Plan de diseño',brand:'Ejemplo',category:'Design',offer_type:'discount',countries:['CO'],requirements:['Matrícula vigente'],steps:['Consultar la fuente'],source_url:'https://example.invalid/student'}]);
     assert.equal(response,'Prueba correcta');
     assert.deepEqual(calls.map(x=>x.model),['unavailable-model','openai/gpt-oss-20b']);
     assert.equal(calls[1].reasoning_effort,'low');
+    assert.match(calls[1].messages[0].content,/Matrícula vigente/);
+    assert.match(calls[1].messages[0].content,/Consultar la fuente/);
+    assert.match(calls[1].messages[0].content,/no recomiendes fichas limitadas a otros países/);
     assert.equal(aiStatus().model,'openai/gpt-oss-20b');
     assert.equal(aiStatus().error,null);
   } finally {globalThis.fetch=original;}

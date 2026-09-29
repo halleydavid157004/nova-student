@@ -1,6 +1,6 @@
 import { db } from '../db.js';
 // Crawler results are leads until someone verifies the concrete benefit.
-export function isPublishedOffer(o){return o?.status==='active' && (o.official===true || o.reviewed===true)}
+export function isPublishedOffer(o){return o?.status==='active' && (o.official===true || o.reviewed===true) && (!o.expires_at || new Date(o.expires_at).getTime()>Date.now())}
 export function searchOffers({q='',country='ALL',category='ALL',verification='ALL',limit=100}={}){
   q=String(q||'').trim().toLowerCase(); limit=Math.max(1,Math.min(500,Number(limit)||100));
   return db.offers.filter(o=>{

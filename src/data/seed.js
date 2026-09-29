@@ -193,44 +193,14 @@ export const OFFERS = [
 
   /* ══════════════ AI & ML ══════════════ */
   {
-    slug:'chatgpt-plus-student', brand:'OpenAI', title:'ChatGPT Plus — Descuento para Estudiantes (EE.UU.)',
-    summary:'ChatGPT Plus con GPT-4o, análisis de datos, generación de imágenes y más a precio de estudiante.',
-    benefit:'ChatGPT Plus a $10/mes (50% de descuento vs $20/mes normal). Incluye GPT-4o, Deep Research, DALL·E y más.',
-    category:'AI', offer_type:'discount', countries:['US'],
-    requirements:['Ser estudiante universitario en EE.UU.','Correo .edu para verificar','SheerID para confirmación'],
-    steps:['Inicia sesión en chatgpt.com','Ve a Settings > Subscription','Selecciona plan Plus Student','Verifica con tu correo .edu vía SheerID','El descuento se aplica inmediatamente'],
-    verification:'SheerID', source_url:'https://openai.com/index/chatgpt-student/', official:true, confidence:97,
+    slug:'chatgpt-plus-student', brand:'OpenAI', title:'ChatGPT Plus — 4 meses gratis para estudiantes elegibles',
+    summary:'Promoción de regreso a clases de 2026 para estudiantes universitarios elegibles en EE.UU.; solicítala hasta el 31 de octubre.',
+    benefit:'Cuatro mensualidades gratis de ChatGPT Plus. Después se renueva a $20/mes salvo cancelación; se requiere un método de pago válido.',
+    category:'AI', offer_type:'free', countries:['US'], expires_at:'2026-11-01T07:00:00.000Z',
+    requirements:['Estudiar en una institución universitaria elegible de EE.UU.','Verificar la matrícula actual mediante SheerID','Tener un método de pago válido para activar la promoción'],
+    steps:['Abre la página de la promoción antes del 31 de octubre de 2026','Inicia sesión en la cuenta de ChatGPT donde deseas aplicar la oferta','Sigue la verificación de matrícula de SheerID','Vuelve al flujo de la promoción y completa la activación'],
+    verification:'SheerID', source_url:'https://chatgpt.com/students/2026/', official:true, confidence:99,
     requires_card:true, commercial_use:'personal', tags:['trending','ai','hot']
-  },
-  {
-    slug:'notion-ai-student', brand:'Notion', title:'Notion AI + Plan Education — Gratis',
-    summary:'Workspace todo-en-uno con IA integrada, gratis para estudiantes universitarios.',
-    benefit:'Notion Education gratis: páginas ilimitadas, subidas ilimitadas, historial de 30 días, IA disponible a precio reducido.',
-    category:'AI', offer_type:'free', countries:['GLOBAL'],
-    requirements:['Estudiante/docente de educación superior','Correo institucional reconocido en WHED'],
-    steps:['Usa tu correo .edu como email principal en Notion','Ve a Settings > Plans','Selecciona "Get Education Plan"','Re-verifica cada año'],
-    verification:'Educational email', source_url:'https://www.notion.com/help/notion-for-education', official:true, confidence:99,
-    requires_card:false, commercial_use:'check-terms', tags:['trending','ai']
-  },
-  {
-    slug:'copilot-microsoft', brand:'Microsoft', title:'Microsoft Copilot — Incluido con M365 Education',
-    summary:'El asistente de IA de Microsoft integrado en Word, Excel, PowerPoint, Teams y más.',
-    benefit:'Microsoft Copilot disponible en las apps de Office 365 gratis con la licencia educativa A1/A3.',
-    category:'AI', offer_type:'free', countries:['GLOBAL'],
-    requirements:['Microsoft 365 Education A1 o superior','Correo institucional'],
-    steps:['Activa Microsoft 365 Education con tu correo .edu','Copilot está disponible en Bing Chat gratis','Pregunta a tu universidad si tienen licencias A3/A5 con Copilot completo'],
-    verification:'Educational email', source_url:'https://www.microsoft.com/education/students', official:true, confidence:92,
-    requires_card:false, commercial_use:'no', tags:['ai']
-  },
-  {
-    slug:'claude-anthropic', brand:'Anthropic', title:'Claude.ai — Gratis con Upgrade disponible',
-    summary:'Claude 3.5 Sonnet y Haiku disponibles de forma gratuita con límites generosos.',
-    benefit:'Claude gratis con uso diario generoso. Ideal para escritura académica, código y análisis de documentos.',
-    category:'AI', offer_type:'free', countries:['GLOBAL'],
-    requirements:['Crear cuenta gratuita (no requiere ser estudiante, pero es útil para todos)'],
-    steps:['Ve a claude.ai','Crea cuenta con email','Accede a Claude 3.5 Sonnet gratis','Opcionalmente upgrade a Pro por $20/mes'],
-    verification:'Email', source_url:'https://claude.ai', official:true, confidence:95,
-    requires_card:false, commercial_use:'check-terms', tags:['ai','trending']
   },
 
   /* ══════════════ PRODUCTIVITY ══════════════ */
