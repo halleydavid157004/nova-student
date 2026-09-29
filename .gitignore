@@ -2,3 +2,6 @@
 .env
 .DS_Store
 node_modules/
+/storage/*.json
+/storage/*.log
+/storage/*.tmp

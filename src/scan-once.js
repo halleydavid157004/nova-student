@@ -1,1 +1,1 @@
-import { migrate } from './db.js';import { scanAll,discoverAll } from './services/crawler.js';migrate();console.log(await discoverAll());console.table(await scanAll());
+import { db,migrate } from './db.js';import { seedDatabase } from './seed.js';import { scanAll,discoverAll } from './services/crawler.js';migrate();if(!db.offers.length)seedDatabase();console.log(await discoverAll());console.table(await scanAll());
