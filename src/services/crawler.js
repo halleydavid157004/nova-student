@@ -260,30 +260,32 @@ export async function scanSource(source) {
     // Try to auto-extract new offer if source has no linked offer
     const hasOffer = db.offers.some(o => o.source_url === source.url);
     if (!hasOffer && text.length > 200) {
-      // Use AI-powered extraction when Groq is available
-      let extracted = null;
-      if (aiEnabled()) {
-        try {
-          const aiResult = await extractOfferWithAI(text, source.url);
-          if (aiResult) {
-            extracted = {
-              slug: `ai-${hash(source.url).slice(0, 12)}`,
-              ...aiResult,
-              verification: guessVerification(text),
-              official: false,
-              auto_discovered: true,
-              discovered_via: 'Nova AI + Brave Search',
-              tags: ['discovered', 'ai-extracted'],
-            };
-          }
-        } catch (e) {
-          console.error('[Nova AI] Extraction failed, falling back:', e.message);
-        }
-      }
+      // Try fast regex-based extraction first (no API cost)
+      let extracted = extractOfferFromText(text, source.url, source.name);
 
-      // Fallback to regex-based extraction
-      if (!extracted) {
-        extracted = extractOfferFromText(text, source.url, source.name);
+      // If regex failed but text looks promising, try AI extraction
+      if (!extracted && aiEnabled() && text.length > 500) {
+        const low = text.toLowerCase();
+        const hasStudentKeywords = ['student', 'education', '.edu', 'university'].some(k => low.includes(k));
+        const hasOfferKeywords = ['free', 'discount', 'gratis', 'credits'].some(k => low.includes(k));
+        if (hasStudentKeywords && hasOfferKeywords) {
+          try {
+            const aiResult = await extractOfferWithAI(text, source.url);
+            if (aiResult) {
+              extracted = {
+                slug: `ai-${hash(source.url).slice(0, 12)}`,
+                ...aiResult,
+                verification: guessVerification(text),
+                official: false,
+                auto_discovered: true,
+                discovered_via: 'Nova AI + Brave Search',
+                tags: ['discovered', 'ai-extracted'],
+              };
+            }
+          } catch (e) {
+            console.error('[Nova AI] Extraction failed, skipping:', e.message);
+          }
+        }
       }
 
       if (extracted) {

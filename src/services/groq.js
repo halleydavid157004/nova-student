@@ -9,26 +9,73 @@
 
 const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
 const API_KEY = process.env.GROQ_API_KEY || '';
-const MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+const MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+
+// Valid categories matching CATEGORIES in seed.js
+const VALID_CATEGORIES = [
+  'Development', 'Cloud', 'Design', 'Creative', 'AI', 'Productivity',
+  'Streaming', 'Education', 'Shopping', 'Security', 'Gaming',
+  'Travel', 'Health', 'Finance', 'Hosting', 'Entertainment', 'Hardware'
+];
 
 function enabled() { return !!API_KEY; }
 
-/**
- * Low-level call to Groq chat completions.
- */
-async function groqChat(messages, { temperature = 0.4, max_tokens = 1024 } = {}) {
-  if (!API_KEY) throw new Error('GROQ_API_KEY not set');
-  const res = await fetch(GROQ_API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
-    body: JSON.stringify({ model: MODEL, messages, temperature, max_tokens }),
-  });
-  if (!res.ok) {
-    const err = await res.text().catch(() => 'Unknown error');
-    throw new Error(`Groq API ${res.status}: ${err}`);
+/* ═══════════════════════════════════════════
+   RATE LIMITER — Prevents 429 errors
+   ═══════════════════════════════════════════ */
+const rateLimiter = {
+  lastCall: 0,
+  minDelay: 4000, // ms between API calls (15 req/min max)
+  queue: [],
+  async wait() {
+    const now = Date.now();
+    const elapsed = now - this.lastCall;
+    if (elapsed < this.minDelay) {
+      await new Promise(r => setTimeout(r, this.minDelay - elapsed));
+    }
+    this.lastCall = Date.now();
   }
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim() || '';
+};
+
+/**
+ * Low-level call to Groq chat completions with retry logic.
+ */
+async function groqChat(messages, { temperature = 0.4, max_tokens = 1024, retries = 2 } = {}) {
+  if (!API_KEY) throw new Error('GROQ_API_KEY not set');
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    await rateLimiter.wait();
+
+    try {
+      const res = await fetch(GROQ_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
+        body: JSON.stringify({ model: MODEL, messages, temperature, max_tokens }),
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (res.status === 429) {
+        // Rate limited — wait and retry
+        const retryAfter = parseInt(res.headers.get('retry-after') || '10', 10);
+        console.log(`[Nova AI] Rate limited. Waiting ${retryAfter}s before retry ${attempt + 1}/${retries}...`);
+        await new Promise(r => setTimeout(r, retryAfter * 1000));
+        continue;
+      }
+
+      if (!res.ok) {
+        const err = await res.text().catch(() => 'Unknown error');
+        throw new Error(`Groq API ${res.status}: ${err}`);
+      }
+
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content?.trim() || '';
+    } catch (e) {
+      if (attempt === retries) throw e;
+      console.log(`[Nova AI] Attempt ${attempt + 1} failed: ${e.message}. Retrying...`);
+      await new Promise(r => setTimeout(r, 3000));
+    }
+  }
+  throw new Error('All retries exhausted');
 }
 
 /* ═══════════════════════════════════════════
@@ -43,59 +90,59 @@ export async function extractOfferWithAI(rawText, url) {
   if (!enabled()) return null;
 
   // Limit input to avoid token waste
-  const trimmed = rawText.slice(0, 3000);
+  const trimmed = rawText.slice(0, 2000);
 
   let domain;
   try { domain = new URL(url).hostname.replace(/^www\./, ''); } catch { return null; }
 
-  const prompt = `Analiza el siguiente texto extraído de la web "${domain}" y determina si contiene una oferta, descuento o beneficio real para ESTUDIANTES.
+  const prompt = `Analiza este texto de "${domain}" y determina si contiene una oferta real para ESTUDIANTES.
 
-Si NO es una oferta legítima para estudiantes, responde EXACTAMENTE: NO_OFFER
+Si NO es oferta legítima para estudiantes, responde: NO_OFFER
 
-Si SÍ es una oferta para estudiantes, responde en este formato JSON exacto (sin markdown, sin backticks):
+Si SÍ, responde en JSON exacto (sin markdown):
 {
-  "brand": "Nombre de la empresa",
-  "title": "Título corto y claro de lo que obtienen gratis/con descuento (máx 60 chars)",
-  "summary": "Descripción breve de 1 línea sobre el beneficio concreto (máx 100 chars)",
-  "category": "Una de: AI_ML, CLOUD, DESIGN, DEVELOPER, PRODUCTIVITY, EDUCATION, ENTERTAINMENT, SHOPPING, HEALTH, FINANCE, OTHER",
-  "offer_type": "Una de: FREE, DISCOUNT, CREDITS, BUNDLE, TRIAL",
-  "countries": ["GLOBAL"] o ["US","MX",...],
+  "brand": "Nombre empresa",
+  "title": "Qué obtienen gratis/descuento (max 60 chars)",
+  "summary": "Beneficio concreto en 1 línea (max 100 chars)",
+  "category": "UNA de: ${VALID_CATEGORIES.join(', ')}",
+  "offer_type": "UNA de: free, discount, credits, bundle, trial",
+  "countries": ["GLOBAL"],
   "requires_card": false,
-  "steps": ["Paso 1 claro", "Paso 2 claro", "Paso 3 claro"],
-  "confidence": 85
+  "steps": ["Paso 1", "Paso 2", "Paso 3"],
+  "confidence": 80
 }
 
-REGLAS IMPORTANTES:
-- El título debe ser claro y directo: qué obtienes gratis. Ej: "GitHub Copilot — Gratis para Estudiantes"
-- El summary debe explicar el beneficio concreto, no repetir el título
-- Los steps deben ser instrucciones reales y útiles de cómo reclamar la oferta
-- confidence: 90+ si es de la página oficial, 70-89 si es referencia indirecta, <70 si es dudoso
-- NO inventes ofertas que no estén en el texto
-
-TEXTO DE LA WEB:
+TEXTO:
 ${trimmed}`;
 
   try {
     const answer = await groqChat([
-      { role: 'system', content: 'Eres un analista experto en ofertas estudiantiles. Respondes solo en el formato solicitado.' },
+      { role: 'system', content: 'Eres analista de ofertas estudiantiles. Solo respondes en el formato pedido. Responde en español.' },
       { role: 'user', content: prompt },
-    ], { temperature: 0.2, max_tokens: 600 });
+    ], { temperature: 0.2, max_tokens: 500 });
 
     if (answer.includes('NO_OFFER')) return null;
 
-    // Parse JSON from response
     const jsonMatch = answer.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
 
     const parsed = JSON.parse(jsonMatch[0]);
     if (!parsed.brand || !parsed.title) return null;
 
+    // Validate and normalize category
+    let category = parsed.category || 'Education';
+    if (!VALID_CATEGORIES.includes(category)) {
+      // Try case-insensitive match
+      const match = VALID_CATEGORIES.find(c => c.toLowerCase() === category.toLowerCase());
+      category = match || 'Education';
+    }
+
     return {
       brand: parsed.brand,
       title: parsed.title,
       summary: parsed.summary || '',
-      category: parsed.category || 'OTHER',
-      offer_type: parsed.offer_type || 'FREE',
+      category,
+      offer_type: parsed.offer_type || 'free',
       countries: parsed.countries || ['GLOBAL'],
       requires_card: !!parsed.requires_card,
       steps: parsed.steps || ['Visita el enlace oficial', 'Verifica tu condición de estudiante', 'Activa la oferta'],
@@ -113,26 +160,22 @@ ${trimmed}`;
    2. OFFER ENRICHMENT
    ═══════════════════════════════════════════ */
 
-/**
- * Takes an existing offer with a messy summary and rewrites it cleanly.
- */
 export async function enrichOffer(offer) {
   if (!enabled() || !offer) return offer;
   try {
     const answer = await groqChat([
-      { role: 'system', content: 'Eres un editor de contenido premium. Reescribes textos sucios en resúmenes profesionales breves en español.' },
-      { role: 'user', content: `Reescribe esta información de oferta estudiantil de forma limpia y profesional.
+      { role: 'system', content: 'Eres editor de contenido premium. Reescribes textos sucios en resúmenes profesionales breves en español.' },
+      { role: 'user', content: `Reescribe esta oferta de forma limpia:
 
 Marca: ${offer.brand}
-Título actual: ${offer.title}
-Resumen actual: ${offer.summary}
-Beneficio: ${offer.benefit || ''}
+Título: ${offer.title}
+Resumen: ${offer.summary}
 URL: ${offer.source_url || ''}
 
-Responde en JSON exacto (sin markdown):
+Responde en JSON (sin markdown):
 {
-  "title": "Título mejorado (máx 60 chars, claro y directo)",
-  "summary": "Resumen limpio de 1 línea (máx 100 chars)"
+  "title": "Título mejorado (max 60 chars)",
+  "summary": "Resumen limpio 1 línea (max 100 chars)"
 }` },
     ], { temperature: 0.3, max_tokens: 200 });
 
@@ -152,48 +195,36 @@ Responde en JSON exacto (sin markdown):
    3. NOVA AI CHAT ASSISTANT
    ═══════════════════════════════════════════ */
 
-/**
- * The Nova AI assistant. Receives the user's message + context of available
- * offers and returns a personalized, helpful response.
- */
 export async function chatWithNova(userMessage, offers = []) {
   if (!enabled()) return 'Lo siento, el asistente Nova AI no está configurado. Contacta al administrador.';
 
   // Build context from top offers (limit to keep tokens low)
-  const topOffers = offers.slice(0, 40).map((o, i) =>
+  const topOffers = offers.slice(0, 30).map((o, i) =>
     `${i + 1}. ${o.title} | ${o.category} | ${o.offer_type} | ${o.summary || ''} | URL: ${o.source_url || 'N/A'}`
   ).join('\n');
 
-  const systemPrompt = `Eres "Nova AI", el asistente inteligente de Nova Student Radar, la plataforma más avanzada de ofertas para estudiantes del mundo.
+  const systemPrompt = `Eres "Nova AI", el asistente inteligente de Nova Student Radar, la plataforma más avanzada de ofertas para estudiantes.
 
 TU PERSONALIDAD:
-- Eres amigable, entusiasta y súper útil
-- Respondes siempre en español
-- Usas emojis moderadamente para ser cercano
-- Eres directo y das recomendaciones concretas
-- Conoces a fondo cada oferta disponible en la plataforma
+- Amigable, entusiasta y útil
+- Respondes SIEMPRE en español
+- Usas emojis moderadamente
+- Das recomendaciones concretas con pasos claros
+- Respuestas concisas (máx 3 párrafos)
 
-TUS CAPACIDADES:
-- Recomendar ofertas específicas según la carrera, país o necesidad del estudiante
-- Explicar paso a paso cómo reclamar cualquier oferta
-- Comparar ofertas similares
-- Dar tips para maximizar los beneficios estudiantiles
-- Responder preguntas sobre verificación (.edu, ISIC, etc.)
-
-OFERTAS DISPONIBLES EN LA PLATAFORMA:
+OFERTAS DISPONIBLES:
 ${topOffers}
 
 REGLAS:
-- Solo recomienda ofertas que estén en la lista de arriba
-- Si no hay una oferta para lo que pide el usuario, dilo honestamente
-- Mantén las respuestas concisas (máx 3 párrafos)
-- Si el usuario pregunta algo no relacionado con ofertas estudiantiles, redirige amablemente`;
+- Solo recomienda ofertas de la lista
+- Si no hay oferta para lo que pide el usuario, dilo honestamente
+- Si preguntan algo no relacionado con ofertas, redirige amablemente`;
 
   try {
     const answer = await groqChat([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage },
-    ], { temperature: 0.6, max_tokens: 800 });
+    ], { temperature: 0.6, max_tokens: 600 });
 
     return answer || 'No pude generar una respuesta. Intenta reformular tu pregunta.';
   } catch (e) {
