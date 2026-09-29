@@ -19,7 +19,7 @@ test('HTTP API: arranque, búsqueda, alertas, seguridad y estado de IA', async t
   const database=path.join(dir,'db.json');
   const port=await freePort();
   const server=spawn(process.execPath,['server.js'],{
-    env:{...process.env,PORT:String(port),DATABASE_PATH:database,WORKER_ENABLED:'false',GROQ_API_KEY:'',ADMIN_TOKEN:''},
+    env:{...process.env,PORT:String(port),DATABASE_PATH:database,WORKER_ENABLED:'false',GROQ_API_KEY:'',ADMIN_TOKEN:'',RESEND_API_KEY:'',RESEND_FROM:'',SMTP_USER:'',SMTP_PASS:'',SUPABASE_URL:'',SUPABASE_SECRET_KEY:''},
     stdio:['ignore','pipe','pipe']
   });
   const base=`http://127.0.0.1:${port}`;
@@ -65,6 +65,19 @@ test('HTTP API: arranque, búsqueda, alertas, seguridad y estado de IA', async t
     });
     await t.test('favorites are no longer shared on the server',async()=>{
       assert.equal((await request('/api/favorites')).status,404);
+    });
+    await t.test('invalid JSON shapes and filters return 400; alert bursts return 429',async()=>{
+      const headers={'content-type':'application/json'};
+      for(const payload of [null,[],{email:'test@example.invalid',country:{}}]){
+        assert.equal((await request('/api/alerts',{method:'POST',headers,body:JSON.stringify(payload)})).status,400);
+      }
+      const responses=[];
+      for(let i=0;i<21;i++)responses.push(await request('/api/alerts',{method:'POST',headers,body:JSON.stringify({email:'test@example.invalid',frequency:'daily'})}));
+      const limited=responses.find(r=>r.status===429);
+      assert.ok(limited,'a burst cannot write unlimited subscriptions');
+      assert.ok(Number(limited.headers.get('retry-after'))>0);
+      const accepted=responses.find(r=>r.status===200);
+      assert.equal((await accepted.json()).deliveryConfigured,false,'missing mail setup is reported honestly');
     });
   } finally {
     server.kill('SIGTERM');

@@ -53,6 +53,7 @@ async function requestRemote(query='',options={}){
     ...options,
     headers:{apikey:supabaseKey,Accept:'application/json',...options.headers},
     signal:AbortSignal.timeout(15000),
+    redirect:'error',
   });
   if(!response.ok)throw new Error(`Supabase storage HTTP ${response.status}`);
   return options.method ? null : response.json();
@@ -120,7 +121,7 @@ export async function flushSave(){
 export function storageStatus(){return {provider:remoteUrl?'supabase':'local',ready:!remoteUrl||remoteReady,synced:!remoteUrl||persisted===dirty,error:!!lastPersistError};}
 
 for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{
-  const deadline=setTimeout(()=>process.exit(1),8000);
+  const deadline=setTimeout(()=>process.exit(1),25000);
   flushSave().then(()=>{clearTimeout(deadline);process.exit(0)},e=>{
     console.error('[Storage] Shutdown save failed:',e.message);
     clearTimeout(deadline);process.exit(1);

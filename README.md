@@ -65,7 +65,13 @@ Los favoritos se guardan en el navegador de cada visitante. La base JSON local d
 2. En el servicio **Free** existente de Render, agrega `SUPABASE_URL` con la URL HTTPS del proyecto y `SUPABASE_SECRET_KEY` con una clave nueva que empiece por `sb_secret_` (**Settings → API Keys** en Supabase). Guárdala solo como variable secreta del servidor; no la compartas por chat ni la pongas en GitHub o en el navegador. Mantén `DATABASE_PATH` sin cambiar y el plan de Render en Free.
 3. Despliega el último commit de `main`. Abre `/api/health`: `storage.provider` debe ser `supabase`, `ready: true`, `synced: true` y `error: false`. Si falta una variable, la tabla no existe o Supabase no responde, el servidor no arranca con una base temporal: revisa los registros y la configuración.
 
-En el primer arranque de una tabla vacía se cargan las fichas semilla. Una copia privada anterior se puede importar **antes** de ese primer arranque con `SEED_DATABASE_PATH` apuntando a un JSON accesible solo por el servidor; los datos temporales de Render no se transfieren solos. En Supabase Free hay 500 MB de base, 5 GB de salida incluidos, pausas por poca actividad y no hay copias automáticas. Descarga copias privadas periódicas de la fila `nova_state` desde el panel de Supabase; evita publicar la fila porque puede contener correos de suscriptores. El worker de Render Free solo funciona mientras el servicio está despierto y no garantiza escaneos continuos.
+En el primer arranque de una tabla vacía se cargan las fichas semilla. Una copia privada anterior se puede importar **antes** de ese primer arranque con `SEED_DATABASE_PATH` apuntando a un JSON accesible solo por el servidor; los datos temporales de Render no se transfieren solos. En Supabase Free hay 500 MB de base, 5 GB de salida incluidos, pausas por poca actividad y no hay copias automáticas. Descarga copias privadas periódicas de la fila `nova_state` desde el panel de Supabase; evita publicar la fila porque puede contener correos de suscriptores. Esta modalidad guarda una instantánea desde **un solo proceso escritor**: no ejecutes `npm run scan` en otra máquina contra la misma tabla ni escales a varias instancias. El worker de Render Free solo funciona mientras el servicio está despierto y no garantiza escaneos continuos.
+
+El formulario informa si la alerta está guardada pero el proveedor de correo aún no está configurado. Guardar una alerta no prueba que un mensaje se haya entregado.
+
+### Protección de recursos gratuitos
+
+El chat admite dos peticiones simultáneas y 30 por cada 10 minutos para todo el proceso. El servicio Groq comparte como máximo tres operaciones entre chat y rastreador. Las altas de alertas admiten 20 peticiones por minuto y cuatro simultáneas. Los excesos devuelven HTTP 429 con `Retry-After`, sin acumular una cola ilimitada. Son límites globales para proteger las cuotas gratuitas; no sustituyen autenticación o un control distribuido si el proyecto crece.
 
 ### Resend
 

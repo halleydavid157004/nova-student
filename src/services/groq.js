@@ -17,6 +17,7 @@ const MODELS = [...new Set([
 let activeModel = MODELS[0];
 let lastError = null;
 const modelCooldowns = new Map();
+let pendingCalls = 0;
 
 // Valid categories matching CATEGORIES in seed.js
 const VALID_CATEGORIES = [
@@ -52,6 +53,17 @@ const rateLimiter = {
  * Low-level call to Groq chat completions with retry logic.
  */
 async function groqChat(messages, { temperature = 0.4, max_tokens = 1024, retries = 2 } = {}) {
+  // Bound shared crawler/chat work before entering the provider's pacing queue.
+  if (pendingCalls >= 3) throw Object.assign(new Error('Nova AI is busy'), {code: 'AI_BUSY'});
+  pendingCalls++;
+  try {
+    return await requestGroq(messages, {temperature, max_tokens, retries});
+  } finally {
+    pendingCalls--;
+  }
+}
+
+async function requestGroq(messages, {temperature, max_tokens, retries}) {
   if (!API_KEY) throw new Error('GROQ_API_KEY not set');
   const candidates = [activeModel, ...MODELS.filter(m => m !== activeModel)]
     .filter(m => (modelCooldowns.get(m) || 0) <= Date.now());
