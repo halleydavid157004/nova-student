@@ -7,6 +7,20 @@ process.env.GROQ_MODEL='unavailable-model';
 process.env.GROQ_FALLBACK_MODELS='openai/gpt-oss-20b';
 const {chatWithNova,aiStatus}=await import('../src/services/groq.js');
 
+test('Groq refuses excess simultaneous work instead of growing an unlimited queue',async()=>{
+  const original=globalThis.fetch;
+  let release;
+  const gate=new Promise(resolve=>{release=resolve});
+  globalThis.fetch=async()=>{await gate;return Response.json({choices:[{message:{content:'OK'}}]})};
+  const pending=Array.from({length:3},()=>chatWithNova('Hola',[]));
+  try {
+    await assert.rejects(chatWithNova('Hola',[]),{code:'AI_BUSY'});
+  } finally {
+    release();await Promise.all(pending);globalThis.fetch=original;
+  }
+  assert.equal(aiStatus().error,null,'overload does not falsely report a provider outage');
+});
+
 test('Groq switches when a model is blocked and reports the model actually used',async()=>{
   const calls=[];
   const original=globalThis.fetch;

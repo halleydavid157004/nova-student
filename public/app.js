@@ -528,15 +528,17 @@ $('#alertForm').addEventListener('submit', async (e) => {
   data.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Bogota';
 
   try {
-    await apiFetch('/api/alerts', {
+    const result = await apiFetch('/api/alerts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
 
-    status.textContent = '✓ Alerta activada correctamente';
+    status.textContent = result.deliveryConfigured === false
+      ? '✓ Alerta guardada. Los envíos por correo están pendientes de configuración.'
+      : '✓ Alerta activada correctamente';
     status.className = 'success';
-    toast('Alerta creada ✓', 'success');
+    toast(result.deliveryConfigured === false ? 'Alerta guardada; correo pendiente' : 'Alerta creada ✓', 'success');
     setTimeout(() => closeAlertModal(), 1400);
   } catch (err) {
     status.textContent = '✗ ' + err.message;

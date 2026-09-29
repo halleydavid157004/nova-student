@@ -37,7 +37,7 @@ No necesita `npm install`: el backend usa solamente módulos incluidos en Node.j
 - Detección de cambios por hash de contenido.
 - API REST compartida entre web y extensión.
 - Extensión Chrome/Edge Manifest V3 que detecta ofertas del dominio visitado.
-- Persistencia JSON atómica para que la primera versión sea portátil y no requiera servidor de base de datos.
+- Persistencia JSON local o Supabase Postgres opcional para conservar datos en Render Free.
 
 ## Email
 
@@ -45,15 +45,41 @@ En Render, configura `GROQ_API_KEY` para activar Nova AI y `ADMIN_TOKEN` con un 
 
 Ejecuta `npm test` para comprobar el arranque, las rutas públicas, los controles de acceso y la recuperación ante un modelo bloqueado. Para probar la interfaz en un navegador real hace falta un navegador instalado.
 
-Los favoritos se guardan en el navegador de cada visitante. La base JSON local requiere almacenamiento persistente: el sistema de archivos temporal del plan Free de Render pierde sus cambios al reiniciar o desplegar. Antes de usar alertas reales en producción, configura una base de datos persistente y migración de los registros actuales. Los archivos de `storage/` que contienen datos de ejecución están ignorados por Git. No subas direcciones de suscriptores ni secretos al repositorio.
+Los favoritos se guardan en el navegador de cada visitante. La base JSON local de Render Free pierde sus cambios al reiniciar o desplegar. Configura Supabase para conservar alertas, fuentes y eventos antes de registrar suscripciones reales. Los archivos de `storage/` están ignorados por Git. No subas direcciones de suscriptores ni secretos al repositorio.
+
+### Persistencia gratuita con Supabase
+
+1. Crea un proyecto en el plan **Free** de Supabase. En **SQL Editor**, ejecuta este SQL una sola vez:
+
+   ```sql
+   create table if not exists public.nova_state (
+     id integer primary key check (id = 1),
+     state jsonb not null,
+     updated_at timestamptz not null default now()
+   );
+   alter table public.nova_state enable row level security;
+   revoke all on public.nova_state from anon, authenticated;
+   grant select, insert, update on public.nova_state to service_role;
+   ```
+
+2. En el servicio **Free** existente de Render, agrega `SUPABASE_URL` con la URL HTTPS del proyecto y `SUPABASE_SECRET_KEY` con una clave nueva que empiece por `sb_secret_` (**Settings → API Keys** en Supabase). Guárdala solo como variable secreta del servidor; no la compartas por chat ni la pongas en GitHub o en el navegador. Mantén `DATABASE_PATH` sin cambiar y el plan de Render en Free.
+3. Despliega el último commit de `main`. Abre `/api/health`: `storage.provider` debe ser `supabase`, `ready: true`, `synced: true` y `error: false`. Si falta una variable, la tabla no existe o Supabase no responde, el servidor no arranca con una base temporal: revisa los registros y la configuración.
+
+En el primer arranque de una tabla vacía se cargan las fichas semilla. Una copia privada anterior se puede importar **antes** de ese primer arranque con `SEED_DATABASE_PATH` apuntando a un JSON accesible solo por el servidor; los datos temporales de Render no se transfieren solos. En Supabase Free hay 500 MB de base, 5 GB de salida incluidos, pausas por poca actividad y no hay copias automáticas. Descarga copias privadas periódicas de la fila `nova_state` desde el panel de Supabase; evita publicar la fila porque puede contener correos de suscriptores. Esta modalidad guarda una instantánea desde **un solo proceso escritor**: no ejecutes `npm run scan` en otra máquina contra la misma tabla ni escales a varias instancias. El worker de Render Free solo funciona mientras el servicio está despierto y no garantiza escaneos continuos.
+
+El formulario informa si la alerta está guardada pero el proveedor de correo aún no está configurado. Guardar una alerta no prueba que un mensaje se haya entregado.
+
+### Protección de recursos gratuitos
+
+El chat admite dos peticiones simultáneas y 30 por cada 10 minutos para todo el proceso. El servicio Groq comparte como máximo tres operaciones entre chat y rastreador. Las altas de alertas admiten 20 peticiones por minuto y cuatro simultáneas. Los excesos devuelven HTTP 429 con `Retry-After`, sin acumular una cola ilimitada. Son límites globales para proteger las cuotas gratuitas; no sustituyen autenticación o un control distribuido si el proyecto crece.
 
 ### Resend
 
-Configura `RESEND_API_KEY` y `RESEND_FROM`.
+En Render Free usa el API HTTPS de Resend: configura `RESEND_API_KEY` y `RESEND_FROM` con un remitente de un dominio que ya controles y hayas verificado. El plan gratuito tiene límites de envío; el remitente de prueba `onboarding@resend.dev` no sirve para enviar alertas a cualquier suscriptor.
 
 ### Gmail / SMTP
 
-Configura `SMTP_USER` y `SMTP_PASS`. Con Gmail, `SMTP_PASS` debe ser una **contraseña de aplicación**, no tu contraseña habitual. El servidor incluye un cliente SMTP TLS propio, por lo que tampoco necesita paquetes externos.
+El SMTP directo no funciona desde servicios Render Free porque bloquea los puertos 25, 465 y 587. Para ejecutar la app localmente, configura `SMTP_USER` y `SMTP_PASS`; con Gmail, `SMTP_PASS` debe ser una **contraseña de aplicación**, no tu contraseña habitual.
 
 ## Descubrimiento mundial
 

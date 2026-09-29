@@ -367,7 +367,7 @@ export async function scanAll() {
       if(i+4<batch.length) await sleep(CONCURRENCY_DELAY);
     }
   } finally {
-    flushSave();
+    await flushSave();
   }
 
   console.log(`[Scan] Complete. ${out.filter(x => x.changed).length} changed, ${out.filter(x => x.error).length} errors.`);

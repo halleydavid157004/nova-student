@@ -17,6 +17,10 @@ services:
         value: "100"
       - key: GROQ_API_KEY
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
       - key: ADMIN_TOKEN
         sync: false
       - key: STUDENTOFFERS_DISCOVERY
