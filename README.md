@@ -65,6 +65,8 @@ Las fichas creadas automáticamente permanecen pendientes y se muestran como pis
 
 Si `DATABASE_PATH` apunta a un volumen persistente vacío, el servidor crea las fichas y fuentes iniciales desde `src/data/seed.js`. Los reinicios posteriores leen el volumen sin sobrescribir sus datos. Para importar una copia privada existente una sola vez, configura `SEED_DATABASE_PATH` con la ruta a esa copia fuera del repositorio. El servicio Free actual continúa con almacenamiento temporal hasta que se configure un recurso persistente. Las promociones con fecha de vencimiento dejan de publicarse automáticamente; sus condiciones vigentes se confirman en la fuente oficial.
 
+La propuesta de `render.yaml` usa un servicio Starter con un disco de 1 GB montado en `/var/data`, y guarda allí `DATABASE_PATH`. Aplicarla genera cargos y un nuevo despliegue. El primer arranque del disco vacío usa las fichas y fuentes iniciales vigentes en `src/data/seed.js`; no transfiere automáticamente suscripciones ni fuentes que solo vivían en el sistema temporal anterior. Si existe una copia privada que quieras conservar, prepara su importación antes de activar el disco. Render limita los servicios con disco a una instancia y los despliegues pueden tener una breve interrupción. Este archivo no cambia por sí solo la configuración del servicio creado manualmente: también hay que agregar el disco y configurar `DATABASE_PATH` en el panel o sincronizarlo mediante un Blueprint vinculado.
+
 ```bash
 npm run scan
 ```
