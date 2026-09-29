@@ -45,7 +45,7 @@ En Render, configura `GROQ_API_KEY` para activar Nova AI y `ADMIN_TOKEN` con un 
 
 Ejecuta `npm test` para comprobar el arranque, las rutas públicas, los controles de acceso y la recuperación ante un modelo bloqueado. Para probar la interfaz en un navegador real hace falta un navegador instalado.
 
-Los favoritos se guardan en el navegador de cada visitante. La base JSON local requiere almacenamiento persistente: el sistema de archivos temporal del plan Free de Render pierde sus cambios al reiniciar o desplegar. Antes de usar alertas reales en producción, configura una base de datos persistente y migración de los registros actuales. El archivo `storage/nova-student.json` está versionado; no añadas datos personales nuevos a ese archivo.
+Los favoritos se guardan en el navegador de cada visitante. La base JSON local requiere almacenamiento persistente: el sistema de archivos temporal del plan Free de Render pierde sus cambios al reiniciar o desplegar. Antes de usar alertas reales en producción, configura una base de datos persistente y migración de los registros actuales. Los archivos de `storage/` que contienen datos de ejecución están ignorados por Git. No subas direcciones de suscriptores ni secretos al repositorio.
 
 ### Resend
 
@@ -63,7 +63,7 @@ Configura además `BRAVE_SEARCH_API_KEY` para ampliar el descubrimiento web. El 
 
 Las fichas creadas automáticamente permanecen pendientes y se muestran como pistas en el Radar. El catálogo público, las alertas y Nova AI usan solo fichas activas con `official: true` o `reviewed: true`. Una respuesta HTTP 200 o un texto que contiene «student» no confirma por sí solo que exista un beneficio. Revisa el beneficio, las condiciones, la vigencia y el enlace de la marca antes de aprobar una ficha.
 
-Si `DATABASE_PATH` apunta a un volumen persistente vacío, `SEED_DATABASE_PATH=./storage/nova-student.json` copia la base inicial una sola vez. Los reinicios posteriores leen el volumen y nunca sobrescriben sus datos con el archivo del repositorio. El servicio Free actual continúa con almacenamiento temporal hasta que se configure un recurso persistente.
+Si `DATABASE_PATH` apunta a un volumen persistente vacío, el servidor crea las 40 fichas y 40 fuentes iniciales desde `src/data/seed.js`. Los reinicios posteriores leen el volumen sin sobrescribir sus datos. Para importar una copia privada existente una sola vez, configura `SEED_DATABASE_PATH` con la ruta a esa copia fuera del repositorio. El servicio Free actual continúa con almacenamiento temporal hasta que se configure un recurso persistente.
 
 ```bash
 npm run scan
