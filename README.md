@@ -61,6 +61,10 @@ Por defecto, el radar puede usar la API pública de StudentOffers únicamente pa
 
 Configura además `BRAVE_SEARCH_API_KEY` para ampliar el descubrimiento web. El agente ejecuta búsquedas periódicas y añade URLs nuevas como **fuentes descubiertas no verificadas**. Una fuente encontrada en buscador nunca se marca automáticamente como oficial.
 
+Las fichas creadas automáticamente permanecen pendientes y se muestran como pistas en el Radar. El catálogo público, las alertas y Nova AI usan solo fichas activas con `official: true` o `reviewed: true`. Una respuesta HTTP 200 o un texto que contiene «student» no confirma por sí solo que exista un beneficio. Revisa el beneficio, las condiciones, la vigencia y el enlace de la marca antes de aprobar una ficha.
+
+Si `DATABASE_PATH` apunta a un volumen persistente vacío, `SEED_DATABASE_PATH=./storage/nova-student.json` copia la base inicial una sola vez. Los reinicios posteriores leen el volumen y nunca sobrescriben sus datos con el archivo del repositorio. El servicio Free actual continúa con almacenamiento temporal hasta que se configure un recurso persistente.
+
 ```bash
 npm run scan
 ```

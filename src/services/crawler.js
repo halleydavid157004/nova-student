@@ -164,7 +164,7 @@ export function extractOfferFromText(text, url, sourceName = '') {
     official: false,
     confidence: 60,
     requires_card: /credit card|tarjeta|payment method/i.test(low),
-    status: 'active',
+    status: 'pending',
     auto_discovered: true,
     discovered_via: 'Nova Radar auto-discovery',
     tags: ['discovered'],
@@ -237,7 +237,7 @@ export async function scanSource(source) {
       if (r.status === 404 || r.status === 410) {
         // Expired or Not Found -> auto-disable
         o.status = 'inactive';
-      } else if (r.ok) {
+      } else if (r.ok && o.status !== 'pending') {
         o.status = 'active'; // Recovered
       }
       
@@ -321,6 +321,7 @@ export async function scanSource(source) {
           const newOffer = {
             id: id('offers'),
             ...extracted,
+            status: 'pending',
             discovered_at: now,
             verified_at: now,
             updated_at: now,
