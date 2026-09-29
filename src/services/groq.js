@@ -270,11 +270,11 @@ export async function chatWithNova(userMessage, offers = []) {
     return { ...o, score };
   });
 
-  // Sort by score (descending) and take the top 15 most relevant offers
+  // Include the conditions and steps actually stored for each recommendation.
   scoredOffers.sort((a, b) => b.score - a.score);
 
-  const topOffers = scoredOffers.slice(0, 15).map((o, i) =>
-    `${i + 1}. ${o.title} | ${o.category} | ${o.offer_type} | ${o.summary || ''} | URL: ${o.source_url || 'N/A'}`
+  const topOffers = scoredOffers.slice(0, 10).map((o, i) =>
+    `${i + 1}. ${o.title} | ${o.category} | ${o.offer_type} | ${o.benefit || o.summary || ''} | Países: ${(o.countries||[]).join(', ') || 'sin dato'} | Requisitos: ${(o.requirements||[]).join('; ') || 'sin dato'} | Pasos: ${(o.steps||[]).join('; ') || 'sin dato'} | URL: ${o.source_url || 'N/A'}`
   ).join('\n');
 
   const systemPrompt = `Eres "Nova AI", el asistente inteligente de Nova Student Radar, la plataforma más avanzada de ofertas para estudiantes.
@@ -291,6 +291,9 @@ ${topOffers}
 
 REGLAS:
 - Solo recomienda ofertas de la lista
+- No inventes precios, vigencia, países, métodos de verificación ni pasos que no figuren en la ficha. Si falta un dato, di que debe consultarse en la fuente.
+- Si el usuario indica un país, no recomiendes fichas limitadas a otros países. GLOBAL no garantiza elegibilidad local: pide confirmarla en la fuente.
+- Cita la URL exacta de la ficha y pide confirmar las condiciones actuales allí antes de pagar o registrarse.
 - Si no hay oferta para lo que pide el usuario, dilo honestamente
 - Si preguntan algo no relacionado con ofertas, redirige amablemente`;
 
