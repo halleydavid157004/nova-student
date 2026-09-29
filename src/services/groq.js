@@ -9,7 +9,13 @@
 
 const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
 const API_KEY = process.env.GROQ_API_KEY || '';
-const MODEL = 'openai/gpt-oss-20b';
+const MODELS = [...new Set([
+  process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
+  ...(process.env.GROQ_FALLBACK_MODELS || 'openai/gpt-oss-120b')
+    .split(',').map(x => x.trim()).filter(Boolean),
+])];
+let activeModel = MODELS[0];
+let lastError = null;
 
 // Valid categories matching CATEGORIES in seed.js
 const VALID_CATEGORIES = [
@@ -19,21 +25,25 @@ const VALID_CATEGORIES = [
 ];
 
 function enabled() { return !!API_KEY; }
+export function aiStatus() {
+  return {enabled: enabled(), model: activeModel, error: lastError};
+}
 
 /* ═══════════════════════════════════════════
    RATE LIMITER — Prevents 429 errors
    ═══════════════════════════════════════════ */
 const rateLimiter = {
   lastCall: 0,
-  minDelay: 4000, // ms between API calls (15 req/min max)
-  queue: [],
+  minDelay: Math.max(0, Number(process.env.GROQ_MIN_DELAY_MS ?? 4000)),
+  queue: Promise.resolve(),
   async wait() {
-    const now = Date.now();
-    const elapsed = now - this.lastCall;
-    if (elapsed < this.minDelay) {
-      await new Promise(r => setTimeout(r, this.minDelay - elapsed));
-    }
-    this.lastCall = Date.now();
+    const turn = this.queue.then(async () => {
+      const delay = Math.max(0, this.minDelay - (Date.now() - this.lastCall));
+      if (delay) await new Promise(r => setTimeout(r, delay));
+      this.lastCall = Date.now();
+    });
+    this.queue = turn.catch(() => {});
+    await turn;
   }
 };
 
@@ -42,40 +52,56 @@ const rateLimiter = {
  */
 async function groqChat(messages, { temperature = 0.4, max_tokens = 1024, retries = 2 } = {}) {
   if (!API_KEY) throw new Error('GROQ_API_KEY not set');
-
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    await rateLimiter.wait();
-
-    try {
+  const candidates = [activeModel, ...MODELS.filter(m => m !== activeModel)];
+  for (const model of candidates) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      await rateLimiter.wait();
+      try {
       const res = await fetch(GROQ_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
-        body: JSON.stringify({ model: MODEL, messages, temperature, max_tokens }),
+        body: JSON.stringify({ model, messages, temperature, max_completion_tokens: max_tokens,
+          ...(model.startsWith('openai/gpt-oss-') ? {reasoning_effort:'low'} : {}) }),
         signal: AbortSignal.timeout(30000),
       });
-
-      if (res.status === 429) {
-        // Rate limited — wait and retry
-        const retryAfter = parseInt(res.headers.get('retry-after') || '10', 10);
-        console.log(`[Nova AI] Rate limited. Waiting ${retryAfter}s before retry ${attempt + 1}/${retries}...`);
-        await new Promise(r => setTimeout(r, retryAfter * 1000));
-        continue;
-      }
-
       if (!res.ok) {
-        const err = await res.text().catch(() => 'Unknown error');
-        throw new Error(`Groq API ${res.status}: ${err}`);
+        const detail = await res.text().catch(() => '');
+        if ([400,403,404].includes(res.status) && /model|decommission|unsupported|permission|blocked/i.test(detail)) {
+          console.warn(`[Nova AI] Model ${model} unavailable; trying next configured model.`);
+          lastError = 'model_unavailable';
+          break;
+        }
+        if (res.status === 401 || res.status === 403) {
+          lastError = 'authentication';
+          throw Object.assign(new Error('Groq authentication failed'), { permanent: true });
+        }
+        if (res.status === 429 || res.status >= 500) {
+          if (attempt < retries) {
+            const seconds = Number(res.headers.get('retry-after'));
+            const delay = Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds * 1000, 15000) : 1000 * (attempt + 1);
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+          lastError = res.status === 429 ? 'rate_limited' : 'provider_unavailable';
+          throw Object.assign(new Error(`Groq API ${res.status}`), { permanent: true });
+        }
+        lastError = 'provider_error';
+        throw Object.assign(new Error(`Groq API ${res.status}`), { permanent: true });
       }
-
       const data = await res.json();
+      activeModel = model;
+      lastError = null;
       return data.choices?.[0]?.message?.content?.trim() || '';
-    } catch (e) {
-      if (attempt === retries) throw e;
-      console.log(`[Nova AI] Attempt ${attempt + 1} failed: ${e.message}. Retrying...`);
-      await new Promise(r => setTimeout(r, 3000));
+      } catch (e) {
+        if (e.permanent || attempt === retries) {
+          lastError ||= 'network_error';
+          throw e;
+        }
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+      }
     }
   }
-  throw new Error('All retries exhausted');
+  throw new Error('No configured Groq model is available');
 }
 
 /* ═══════════════════════════════════════════
@@ -153,8 +179,8 @@ ${trimmed}`;
       requires_card: !!parsed.requires_card,
       steps: parsed.steps || ['Visita el enlace oficial', 'Verifica tu condición de estudiante', 'Activa la oferta'],
       confidence: Math.min(100, Math.max(30, Number(parsed.confidence) || 70)),
-      source_domain: parsed.direct_url ? new URL(parsed.direct_url).hostname.replace(/^www\./, '') : domain,
-      source_url: parsed.direct_url || url,
+      source_domain: parsed.direct_url && /^https?:\/\//i.test(parsed.direct_url) ? new URL(parsed.direct_url).hostname.replace(/^www\./, '') : domain,
+      source_url: parsed.direct_url && /^https?:\/\//i.test(parsed.direct_url) ? parsed.direct_url : url,
       needs_search: parsed.needs_search || null,
     };
   } catch (e) {
@@ -203,7 +229,7 @@ Responde en JSON (sin markdown):
    ═══════════════════════════════════════════ */
 
 export async function chatWithNova(userMessage, offers = []) {
-  if (!enabled()) return 'Lo siento, el asistente Nova AI no está configurado. Contacta al administrador.';
+  if (!enabled()) throw new Error('AI_NOT_CONFIGURED');
 
   // Smart Context: Score and sort offers based on relevance to the user's message
   const userWords = userMessage.toLowerCase().replace(/[^a-z0-9áéíóúñ]/g, ' ').split(/\s+/).filter(w => w.length > 2);
@@ -254,7 +280,7 @@ REGLAS:
     return answer || 'No pude generar una respuesta. Intenta reformular tu pregunta.';
   } catch (e) {
     console.error('[Nova AI] Chat error:', e.message);
-    return 'Ocurrió un error al procesar tu pregunta. Inténtalo de nuevo en unos segundos.';
+    throw e;
   }
 }
 

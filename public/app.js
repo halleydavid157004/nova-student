@@ -9,6 +9,8 @@
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => [...ctx.querySelectorAll(sel)];
 
+const safeUrl = value => { try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) ? url.href : '#'; } catch { return '#'; } };
+
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
@@ -38,8 +40,10 @@ const ISO_CODES = [
    ============================================ */
 let offers = [];
 let saved = new Set();
+try { saved = new Set(JSON.parse(localStorage.getItem('nova-saved-offers') || '[]').filter(Number.isInteger)); } catch { localStorage.removeItem('nova-saved-offers'); }
 let currentView = 'discover';
 let isListView = false;
+let visibleCount = 48;
 
 /* ============================================
    TOAST
@@ -203,11 +207,13 @@ function render(list, targetSel = '#grid', isSavedView = false) {
         <p>${isSavedView ? 'Guarda ofertas con el botón ♡ para encontrarlas aquí.' : 'Prueba con otros filtros o términos de búsqueda.'}</p>
       </div>`;
   } else {
-    el.innerHTML = list.map(renderCard).join('');
+    el.innerHTML = (isSavedView ? list : list.slice(0, visibleCount)).map(renderCard).join('');
   }
 
   if (!isSavedView) {
     offers = list;
+    const more = $('#loadMore');
+    if (more) more.hidden = list.length <= visibleCount;
     const countEl = $('#count');
     if (countEl) {
       countEl.textContent = list.length
@@ -245,21 +251,21 @@ function bindCards(root) {
       const id = Number(btn.dataset.save);
       try {
         if (saved.has(id)) {
-          await fetch(`/api/favorites/${id}`, { method: 'DELETE' });
           saved.delete(id);
           btn.textContent = '♡';
           btn.classList.remove('saved');
           btn.setAttribute('aria-label', 'Guardar oferta');
           toast('Oferta eliminada de guardadas');
         } else {
-          await fetch(`/api/favorites/${id}`, { method: 'POST' });
           saved.add(id);
           btn.textContent = '♥';
           btn.classList.add('saved');
           btn.setAttribute('aria-label', 'Quitar de guardadas');
           toast('Oferta guardada ✓', 'success');
         }
+        localStorage.setItem('nova-saved-offers', JSON.stringify([...saved]));
         updateSavedBadge();
+        if (currentView === 'saved') await loadSaved();
       } catch {
         toast('Error al guardar', 'error');
       }
@@ -282,8 +288,10 @@ function updateSavedBadge() {
    BÚSQUEDA PRINCIPAL
    ============================================ */
 let searchDebounce = null;
+let searchGeneration = 0;
 
 async function search() {
+  const generation = ++searchGeneration;
   const skeleton = $('#loadingSkeleton');
   const grid = $('#grid');
   if (skeleton) skeleton.style.display = '';
@@ -294,13 +302,14 @@ async function search() {
   const category = $('#category').value;
   const verification = $('#verification').value;
 
-  const params = new URLSearchParams({ q, country, category, verification });
+  const params = new URLSearchParams({ q, country, category, verification, limit: '500' });
 
   try {
     let [{ offers: list }, { sources }] = await Promise.all([
       apiFetch('/api/offers?' + params),
       apiFetch('/api/sources?q=' + encodeURIComponent(q))
     ]);
+    if (generation !== searchGeneration) return;
 
     // Client-side quick-tabs filtering
     if (currentTab === 'recent') {
@@ -322,6 +331,7 @@ async function search() {
       titleEl.textContent = q ? `Resultados para "${q}"` : 'Beneficios destacados';
     }
 
+    visibleCount = 48;
     render(list);
 
     // Descubrimientos sin verificar
@@ -337,7 +347,7 @@ async function search() {
       if (list2) {
         list2.innerHTML = unverified.map(s => `
           <div class="source-row">
-            <a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">
+            <a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">
               <strong>${esc(s.name)}</strong>
               <small>${esc(s.domain)} · ${esc(s.category)}</small>
               <div class="discovery-note">Pista del radar. Verifica siempre en la fuente oficial antes de usarla.</div>
@@ -347,6 +357,7 @@ async function search() {
       }
     }
   } catch (e) {
+    if (generation !== searchGeneration) return;
     if (skeleton) skeleton.style.display = 'none';
     const grid = $('#grid');
     if (grid) grid.innerHTML = `<div class="empty-state"><strong>Error al cargar</strong><p>${esc(e.message)}</p></div>`;
@@ -430,9 +441,9 @@ async function openOffer(id) {
         </div>
       </div>
 
-      <a class="source-cta" href="${esc(o.source_url)}" target="_blank" rel="noopener noreferrer">
+      <a class="source-cta" href="${esc(safeUrl(o.source_url))}" target="_blank" rel="noopener noreferrer">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        Ir a la fuente oficial
+        ${o.official ? 'Ir a la fuente oficial' : 'Ver fuente para verificar la oferta'}
       </a>`;
 
     modal.removeAttribute('hidden');
@@ -541,8 +552,12 @@ $('#alertForm').addEventListener('submit', async (e) => {
    ============================================ */
 async function loadSaved() {
   try {
-    const { offers: list } = await apiFetch('/api/favorites');
-    saved = new Set(list.map(o => o.id));
+    const results = await Promise.allSettled([...saved].map(id => apiFetch(`/api/offers/${id}`)));
+    const list = results.filter(x => x.status === 'fulfilled').map(x => x.value.offer);
+    if (list.length !== saved.size) {
+      saved = new Set(list.map(o => o.id));
+      localStorage.setItem('nova-saved-offers', JSON.stringify([...saved]));
+    }
     render(list, '#savedGrid', true);
     updateSavedBadge();
   } catch (e) {
@@ -559,7 +574,7 @@ let allEvents = [];
 async function loadRadar() {
   try {
     const [{ sources }, { events }] = await Promise.all([
-      apiFetch('/api/sources'),
+      apiFetch('/api/sources?limit=1000'),
       apiFetch('/api/events')
     ]);
     allSources = sources;
@@ -610,6 +625,8 @@ function renderRadar(sources, events) {
          </div>`;
   }
 }
+
+$('#loadMore')?.addEventListener('click', () => { visibleCount += 48; render(offers); });
 
 // Búsqueda en radar
 $('#radarQ')?.addEventListener('input', (e) => {
@@ -910,7 +927,7 @@ function initNovaAI() {
 
   // Format markdown-like text into HTML
   function formatResponse(text) {
-    return text
+    return esc(text)
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/`(.*?)`/g, '<code style="background:rgba(124,58,237,0.15);padding:1px 4px;border-radius:4px;font-size:12px;">$1</code>')
@@ -938,6 +955,8 @@ function initNovaAI() {
       });
       const data = await res.json();
       removeTyping();
+      if (!res.ok) throw new Error(data.error || 'La IA no está disponible.');
+      if (data.model) { const label = $('#nova-ai-model-label'); if (label) label.textContent = data.model; }
 
       if (data.reply) {
         addMessage(formatResponse(data.reply), 'bot');
@@ -946,7 +965,7 @@ function initNovaAI() {
       }
     } catch (err) {
       removeTyping();
-      addMessage('Error de conexión. Verifica que el servidor esté activo.', 'bot');
+      addMessage(esc(err.message || 'Error de conexión. Verifica que el servidor esté activo.'), 'bot');
     } finally {
       sendBtn.disabled = false;
       input.disabled = false;
@@ -956,10 +975,8 @@ function initNovaAI() {
 
   // Check AI status
   fetch('/api/ai/status').then(r => r.json()).then(data => {
-    if (data.enabled) {
-      const label = $('#nova-ai-model-label');
-      if (label) label.textContent = data.model;
-    }
+    const label = $('#nova-ai-model-label');
+    if (label) label.textContent = data.enabled ? data.model : 'No configurada';
   }).catch(() => {});
 }
 

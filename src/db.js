@@ -10,7 +10,7 @@ export let db=blank();
 
 export function load(){
   if(fs.existsSync(abs)){
-    try{db=JSON.parse(fs.readFileSync(abs,'utf8'));}catch{db=blank();}
+    db=JSON.parse(fs.readFileSync(abs,'utf8'));
   }
   for(const k of ['offers','sources','alerts','favorites','events']) if(!Array.isArray(db[k])) db[k]=[];
   db.seq ||= {offers:0,sources:0,alerts:0,favorites:0,events:0};
@@ -18,10 +18,19 @@ export function load(){
   return db;
 }
 export function save(){
-  const tmp=abs+'.tmp'; fs.writeFileSync(tmp,JSON.stringify(db,null,2)); fs.renameSync(tmp,abs);
+  if(db.events.length>2000) db.events.splice(0,db.events.length-2000);
+  const tmp=abs+'.tmp'; fs.writeFileSync(tmp,JSON.stringify(db)); fs.renameSync(tmp,abs);
 }
+let pendingSave;
+export function saveSoon(){
+  if(!pendingSave) pendingSave=setTimeout(()=>{pendingSave=null;save()},1000);
+}
+export function flushSave(){
+  if(pendingSave){clearTimeout(pendingSave);pendingSave=null;save()}
+}
+for(const signal of ['SIGTERM','SIGINT']) process.once(signal,()=>{flushSave();process.exit(0)});
 export function id(kind){db.seq[kind]=(db.seq[kind]||0)+1;return db.seq[kind];}
 export function reset(next=blank()){db=next;save();}
-export function migrate(){load();save();}
+export function migrate(){load();}
 export function event(type,title,details={},extra={}){const x={id:id('events'),type,title,details,created_at:new Date().toISOString(),...extra};db.events.push(x);save();return x;}
 load();

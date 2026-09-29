@@ -1,0 +1,72 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {JSDOM} from 'jsdom';
+
+const html=readFileSync('public/index.html','utf8');
+const app=readFileSync('public/app.js','utf8');
+const sample={id:1,brand:'Notion',title:'Plan educativo Notion',summary:'Gratis para estudiantes',benefit:'Acceso educativo',category:'Productivity',verification:'Educational email',countries:['GLOBAL'],offer_type:'free',official:true,confidence:99,source_url:'https://www.notion.so/product/notion-for-education',source_domain:'notion.so',verified_at:new Date().toISOString(),tags:['trending'],steps:['Visita Notion']};
+const catalog=Array.from({length:60},(_,i)=>({...sample,id:i+1,title:`Plan educativo ${i+1}`}));
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+
+test('interfaz: filtros, detalle, favoritos, radar, alerta e IA',async()=>{
+  const dom=new JSDOM(html,{url:'http://localhost:4310/',runScripts:'outside-only',pretendToBeVisual:true});
+  const {window}=dom;
+  window.matchMedia=()=>({matches:false,addListener(){},removeListener(){}});
+  window.HTMLElement.prototype.scrollIntoView=function(){};
+  window.fetch=async(input,options={})=>{
+    const url=new URL(input,window.location.href);
+    const route=url.pathname;
+    const json=(value,status=200)=>({ok:status<400,status,json:async()=>value});
+    if(route==='/api/meta')return json({categories:['Productivity'],verifications:['Educational email']});
+    if(route==='/api/stats')return json({total:1,sources:1,fresh:1,events:0});
+    if(route==='/api/categories')return json({categories:[{key:'Productivity',label:'Productividad',color:'#333',emoji:'📚',offers:1}]});
+    if(route==='/api/offers/trending')return json({offers:[sample]});
+    if(route==='/api/offers/1')return json({offer:sample});
+    if(route==='/api/offers')return json({offers:url.searchParams.get('q')==='inexistente'?[]:catalog});
+    if(route==='/api/sources')return json({sources:[{id:1,name:'Notion',domain:'notion.so',category:'Productivity',url:sample.source_url,official:true}]});
+    if(route==='/api/events')return json({events:[]});
+    if(route==='/api/alerts')return json({ok:true,id:2});
+    if(route==='/api/ai/status')return json({enabled:true,model:'openai/gpt-oss-20b'});
+    if(route==='/api/ai/chat')return json({reply:'**Prueba** <img src=x onerror=alert(1)>',model:'openai/gpt-oss-120b'});
+    throw new Error(`Unexpected route: ${route}`);
+  };
+  const $=sel=>window.document.querySelector(sel);
+  try {
+    window.eval(app);
+    await sleep(120);
+    assert.equal(window.document.querySelectorAll('#grid .card').length,48,'first page renders 48 cards');
+    $('#loadMore').click();
+    assert.equal(window.document.querySelectorAll('#grid .card').length,60,'remaining cards load');
+    $('#listViewBtn').click();assert.ok($('#grid').classList.contains('list-view'));
+    $('#gridViewBtn').click();assert.ok(!$('#grid').classList.contains('list-view'));
+    $('#theme-toggle').click();assert.ok(window.document.body.classList.contains('dark'));
+    assert.equal($('#nova-ai-model-label').textContent,'openai/gpt-oss-20b');
+    $('#grid .card').click(); await sleep(10);
+    assert.equal($('#modal').hasAttribute('hidden'),false);
+    $('[data-close]').click();
+    $('#grid .save-btn').click(); await sleep(10);
+    assert.equal($('#savedCount').textContent,'1');
+    $('#nav-saved').click(); await sleep(20);
+    assert.ok($('#savedGrid .card'),'saved offer is shown');
+    $('#nav-radar').click(); await sleep(20);
+    assert.match($('#radarCount').textContent,/1 fuente/);
+    $('#nav-discover').click();
+    $('#q').value='inexistente';$('#searchBtn').click(); await sleep(20);
+    assert.match($('#grid').textContent,/Sin resultados/);
+    $('#clear').click(); await sleep(20);
+    assert.ok($('#grid .card'),'clear restores results');
+    $('#createAlert-header').click();
+    assert.equal($('#alertModal').hasAttribute('hidden'),false);
+    $('#alertEmail').value='test@example.com';
+    $('#alertForm').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})); await sleep(20);
+    assert.match($('#alertStatus').textContent,/activada/);
+    $('#nova-ai-fab').click();
+    $('#nova-ai-input').value='¿Qué ofrece Notion?';
+    $('#nova-ai-form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})); await sleep(20);
+    assert.equal($('#nova-ai-model-label').textContent,'openai/gpt-oss-120b');
+    const answer=$('#nova-ai-messages .nova-ai-msg:last-child .nova-ai-msg-body');
+    assert.match(answer.textContent,/Prueba/);
+    assert.equal(answer.querySelector('img'),null,'AI response is escaped before formatting');
+  } finally {dom.window.close();}
+});

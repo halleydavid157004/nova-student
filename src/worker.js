@@ -107,6 +107,7 @@ export function getWorkerStatus() {
 }
 
 export function startWorker() {
+  if (process.env.WORKER_ENABLED === 'false') return;
   const scanMs = Number(process.env.SCAN_INTERVAL_MS || 21600000); // default: 6 hours
   const digestMs = Number(process.env.DIGEST_INTERVAL_MS || 3600000); // default: 1 hour
 

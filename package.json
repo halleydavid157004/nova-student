@@ -10,7 +10,12 @@
     "dev": "node --watch server.js",
     "seed": "node src/seed.js",
     "scan": "node src/scan-once.js",
-    "test": "node src/smoke-test.js"
+    "test": "node --test test/*.test.js"
   },
-  "engines": {"node": ">=20"}
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
 }

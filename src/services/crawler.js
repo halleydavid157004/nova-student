@@ -12,7 +12,7 @@
  */
 
 import crypto from 'node:crypto';
-import { db, save, id } from '../db.js';
+import { db, save, saveSoon, flushSave, id } from '../db.js';
 import { extractOfferWithAI, aiEnabled, discoverWithGroq } from './groq.js';
 
 const ua = 'Mozilla/5.0 (compatible; NovaStudentRadar/2.0; +https://github.com/nova-student-radar)';
@@ -209,7 +209,7 @@ export async function scanSource(source) {
     if (!(await robotsAllows(source.url))) {
       source.last_checked_at = now;
       source.last_error = 'Blocked by robots.txt';
-      save();
+      saveSoon();
       return { id: source.id, name: source.name, skipped: true, reason: 'robots.txt' };
     }
 
@@ -219,7 +219,8 @@ export async function scanSource(source) {
       signal: AbortSignal.timeout(FETCH_TIMEOUT),
     });
 
-    const html = await r.text();
+    if (!r.ok && r.status !== 404 && r.status !== 410) throw new Error(`HTTP ${r.status}`);
+    const html = r.ok ? await r.text() : '';
     const text = textFromHtml(html);
     const h = hash(text);
     const changed = !!source.last_hash && source.last_hash !== h;
@@ -233,19 +234,19 @@ export async function scanSource(source) {
 
     // Update existing offers tied to this source
     for (const o of db.offers.filter(x => x.source_url === source.url)) {
-      if (r.status >= 400 && r.status < 500) {
+      if (r.status === 404 || r.status === 410) {
         // Expired or Not Found -> auto-disable
         o.status = 'inactive';
-      } else if (r.status === 200) {
+      } else if (r.ok) {
         o.status = 'active'; // Recovered
       }
       
-      Object.assign(o, {
-        source_hash: h,
-        source_excerpt: excerpt(text),
-        verified_at: now,
-        updated_at: now,
-      });
+      if (r.ok) {
+        o.source_hash = h;
+        o.source_excerpt = excerpt(text);
+        o.verified_at = now;
+        if (changed) o.updated_at = now;
+      }
     }
 
     // If page changed, log event
@@ -262,7 +263,7 @@ export async function scanSource(source) {
 
     // Try to auto-extract new offer if source has no linked offer
     const hasOffer = db.offers.some(o => o.source_url === source.url);
-    if (!hasOffer && text.length > 200) {
+    if (r.ok && !hasOffer && text.length > 200) {
       // Try fast regex-based extraction first (no API cost)
       let extracted = extractOfferFromText(text, source.url, source.name);
 
@@ -339,13 +340,13 @@ export async function scanSource(source) {
       }
     }
 
-    save();
+    saveSoon();
     return { id: source.id, name: source.name, status: r.status, changed, chars: text.length };
 
   } catch (e) {
     source.last_checked_at = now;
     source.last_error = String(e.message || e);
-    save();
+    saveSoon();
     return { id: source.id, name: source.name, error: source.last_error };
   }
 }
@@ -353,11 +354,18 @@ export async function scanSource(source) {
 export async function scanAll() {
   const out = [];
   const sources = db.sources.filter(x => x.enabled);
-  console.log(`[Scan] Starting scan of ${sources.length} sources…`);
-
-  for (const s of sources) {
-    out.push(await scanSource(s));
-    await sleep(CONCURRENCY_DELAY);
+  const batchSize = Math.max(1, Math.min(250, Number(process.env.SCAN_BATCH_SIZE)||100));
+  const start = scanAll.cursor % Math.max(1,sources.length);
+  const batch = Array.from({length: Math.min(batchSize,sources.length)},(_,i)=>sources[(start+i)%sources.length]);
+  scanAll.cursor = start + batch.length;
+  console.log(`[Scan] Checking ${batch.length} of ${sources.length} sources…`);
+  try {
+    for (let i=0;i<batch.length;i+=4) {
+      out.push(...await Promise.all(batch.slice(i,i+4).map(scanSource)));
+      if(i+4<batch.length) await sleep(CONCURRENCY_DELAY);
+    }
+  } finally {
+    flushSave();
   }
 
   console.log(`[Scan] Complete. ${out.filter(x => x.changed).length} changed, ${out.filter(x => x.error).length} errors.`);
@@ -659,7 +667,7 @@ export async function discoverAll() {
         
         const s = {
           id: id('sources'),
-          name: \`AI Discovered: \${dom}\`,
+          name: `AI Discovered: ${dom}`,
           url, domain: dom, category: 'Education',
           countries: ['GLOBAL'],
           enabled: true, official: false,

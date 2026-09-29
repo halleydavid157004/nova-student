@@ -1,18 +1,25 @@
 services:
   - type: web
     name: nova-student-radar
-    env: node
+    runtime: node
     plan: free
-    buildCommand: npm install
+    buildCommand: npm ci --omit=dev
     startCommand: npm start
+    healthCheckPath: /api/health
     envVars:
       - key: PORT
-        value: 10000
+        value: "10000"
       - key: SCAN_INTERVAL_MS
-        value: 1800000
+        value: "1800000"
       - key: DIGEST_INTERVAL_MS
-        value: 300000
+        value: "3600000"
+      - key: SCAN_BATCH_SIZE
+        value: "100"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
       - key: STUDENTOFFERS_DISCOVERY
-        value: true
+        value: "true"
       - key: BRAVE_SEARCH_API_KEY
         sync: false

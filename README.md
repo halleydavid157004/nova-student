@@ -41,6 +41,12 @@ No necesita `npm install`: el backend usa solamente módulos incluidos en Node.j
 
 ## Email
 
+En Render, configura `GROQ_API_KEY` para activar Nova AI y `ADMIN_TOKEN` con un valor secreto distinto de `change-me-now` para usar los endpoints administrativos. El modelo principal es `openai/gpt-oss-20b`; puedes cambiarlo con `GROQ_MODEL` y configurar alternativas separadas por comas en `GROQ_FALLBACK_MODELS`. `/api/ai/status` indica el modelo que respondió por última vez y la categoría del último error.
+
+Ejecuta `npm test` para comprobar el arranque, las rutas públicas, los controles de acceso y la recuperación ante un modelo bloqueado. Para probar la interfaz en un navegador real hace falta un navegador instalado.
+
+Los favoritos se guardan en el navegador de cada visitante. La base JSON local requiere almacenamiento persistente: el sistema de archivos temporal del plan Free de Render pierde sus cambios al reiniciar o desplegar. Antes de usar alertas reales en producción, configura una base de datos persistente y migración de los registros actuales. El archivo `storage/nova-student.json` está versionado; no añadas datos personales nuevos a ese archivo.
+
 ### Resend
 
 Configura `RESEND_API_KEY` y `RESEND_FROM`.
