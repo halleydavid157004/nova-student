@@ -10,7 +10,7 @@ Las búsquedas auxiliares de IA tienen un máximo adicional de 100 solicitudes m
 
 ## Ejecución gratuita
 
-El horario de GitHub Actions es `17 */6 * * *`. Solo consulta el servicio existente; no obtiene claves ni crea un segundo escritor de la base. Despierta Render si es necesario y verifica el resultado real de Brave. El servidor también programa los mismos horarios mientras está activo. El límite mensual y las reservas sobreviven a un reinicio. La ejecución se detiene si falta la clave, el worker está desactivado o el proveedor devuelve un error; alcanzar el presupuesto es una pausa esperada.
+El horario de GitHub Actions es `17 */6 * * *`. Solo consulta el servicio existente; no obtiene claves ni crea un segundo escritor de la base. Despierta Render si es necesario y verifica el resultado real de Brave. Supabase Cron tiene un segundo disparador con el mismo horario: `nova-student-six-hour-wake`, GET público a `/api/health`, timeout de 90 segundos. El script está en `supabase-radar-cron.sql`. Ambos disparadores usan el mismo worker; las reservas persistidas evitan búsquedas repetidas. El servidor también programa los mismos horarios mientras está activo. El límite mensual y las reservas sobreviven a un reinicio. La ejecución se detiene si falta la clave, el worker está desactivado o el proveedor devuelve un error; alcanzar el presupuesto es una pausa esperada.
 
 Los planes de Render y Supabase se mantienen Free. El contador nuevo no conoce el consumo anterior de la cuenta Brave ni el consumo de otros proyectos; debe contrastarse con los créditos disponibles en su panel. GitHub puede retrasar u omitir un horario, y en repositorios públicos puede desactivarlo tras 60 días sin actividad. Estos límites se explican en README.
 
@@ -30,6 +30,8 @@ El buscador del catálogo reconoce tildes y categorías en español, combina pal
 - Ejecutar pruebas de interfaz y toda la suite HTTP/IA/persistencia.
 - Validar YAML y Python del workflow; comprobar CI y el servicio publicado.
 
-La activación real del horario se confirma con una ejecución correcta de GitHub Actions y un resultado nuevo en `/api/worker-status`; publicar el archivo por sí solo no prueba esa activación.
+La activación real del horario se confirma con una ejecución correcta de GitHub Actions y un resultado nuevo en `/api/worker-status`; publicar el archivo por sí solo no prueba esa activación. Supabase confirmó un único trabajo activo, zona GMT y HTTP 200 en una llamada de prueba. Durante esta auditoría Render seguía sirviendo la versión 2.0.0; el primer workflow no pudo confirmar Brave. El usuario debe desplegar manualmente la versión 2.1.0 para activar los cambios. Un GET correcto de Supabase prueba la conectividad, no la nueva ejecución de Brave.
 
 Validación local completada: **36 pruebas correctas, 0 fallos**, incluyendo búsqueda, límites de Brave, concurrencia, HTTP, IA, correo simulado y persistencia. YAML, Python integrado, sintaxis JavaScript, versiones de paquete y revisión de espacios comprobados. El envío real de correo y las condiciones de facturación de otros usos de Brave no quedan verificados por estas pruebas.
+
+Comprobación de Supabase Cron, 2026-09-30 UTC: `pg_cron` 1.6.4, `pg_net` 0.20.4 instalado en `extensions`, un único trabajo activo y HTTP 200 sin timeout en el GET de prueba. Los asesores de seguridad no tienen errores ni advertencias; mantienen una nota informativa esperada sobre RLS sin políticas en `nova_state`, accesible solo por el servidor. El asesor de rendimiento no reportó incidencias. La instalación inicial de `pg_net` en `public` se corrigió antes de cerrar la auditoría, sin solicitudes pendientes ni dependencias ajenas.
