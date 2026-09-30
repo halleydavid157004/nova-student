@@ -1,0 +1,17 @@
+{
+  "offers": [
+    {"id":12,"slug":"fixture-official","brand":"Fixture","title":"Educación cloud","benefit":"Plan gratuito","source_url":"https://example.invalid/student","countries":["CO"],"status":"active","official":true,"verified_at":"2026-09-29T12:00:00.000Z","requirements":["Matrícula"],"steps":["Verificar matrícula"]},
+    {"id":13,"slug":"fixture-pending","brand":"Fixture","title":"Sin aprobación","source_url":"https://example.invalid/student","status":"active","official":false},
+    {"id":14,"slug":"fixture-reviewed","brand":"Fixture","title":"Revisada","source_url":"https://example.invalid/student","status":"active","official":false,"reviewed":true},
+    {"id":15,"slug":"fixture-expired","brand":"Fixture","title":"Vencida","source_url":"https://example.invalid/student","status":"active","official":true,"expires_at":"2000-01-01T00:00:00.000Z"}
+  ],
+  "sources":[{"id":7,"name":"Fixture source","url":"https://example.invalid/student","domain":"example.invalid","enabled":true,"official":true,"countries":["CO"]}],
+  "events":[{"id":100,"source_id":999,"type":"fixture","title":"Referencia antigua","details":{}}],
+  "alerts":[
+    {"id":21,"email":"fixture@example.invalid","frequency":"daily","enabled":true,"query":"cloud"},
+    {"id":22,"email":"fixture@example.invalid","frequency":"weekly","enabled":true,"query":"IA"}
+  ],
+  "favorites":[],
+  "runtime":{"brave":{"month":"2026-09","used":16,"lookupUsed":4,"lastError":null},"worker":{"lastWindow":1,"lastStartedAt":"2026-09-29T00:00:00.000Z","lastCompletedAt":"2026-09-29T00:01:00.000Z","lastScanResult":{"cycle":1}},"scanCursor":7},
+  "seq":{"offers":15,"sources":7,"events":100,"alerts":22}
+}

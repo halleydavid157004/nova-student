@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {createNormalizedStorage} from './storage/normalized.js';
 
 const dbPath = process.env.DATABASE_PATH || './storage/nova-student.json';
 const abs = path.resolve(dbPath);
@@ -9,13 +10,15 @@ if (Boolean(supabaseUrl) !== Boolean(supabaseKey)) {
   throw new Error('Set both SUPABASE_URL and SUPABASE_SECRET_KEY, or neither');
 }
 let remoteUrl;
+const storageMode = process.env.SUPABASE_STORAGE_MODE || 'normalized';
+if (!['normalized','snapshot'].includes(storageMode)) throw new Error('Invalid SUPABASE_STORAGE_MODE');
 if (supabaseUrl) {
   const parsed = new URL(supabaseUrl);
   if (parsed.protocol !== 'https:' || !/^[a-z0-9-]+\.supabase\.co$/.test(parsed.hostname) || parsed.pathname !== '/' || parsed.search || parsed.hash) {
     throw new Error('SUPABASE_URL must be the HTTPS project URL ending in .supabase.co');
   }
   if (!supabaseKey.startsWith('sb_secret_')) throw new Error('Use a Supabase secret API key (sb_secret_)');
-  remoteUrl = `${parsed.origin}/rest/v1/nova_state`;
+  remoteUrl = `${parsed.origin}/rest/v1`;
 } else {
   fs.mkdirSync(path.dirname(abs), {recursive:true});
 }
@@ -24,12 +27,17 @@ const blank=()=>({offers:[],sources:[],alerts:[],favorites:[],events:[],seq:{off
 export let db=blank();
 let remoteReady=false;
 let dirty=0, persisted=0, pendingSave, writeTask, lastPersistError=null;
+let refreshTask, nativeWrites=0, nativeRevision=0;
+const normalizedStorage = remoteUrl && storageMode==='normalized' ? createNormalizedStorage(async(name,args={})=>{
+  const response=await requestRemote('/rpc/'+name,{method:'POST',body:JSON.stringify(args),headers:{'Content-Type':'application/json'},jsonResponse:true});
+  return response;
+}) : null;
 
 function normalize(next){
   db=next && typeof next==='object' && !Array.isArray(next) ? next : blank();
   for(const k of ['offers','sources','alerts','favorites','events']) if(!Array.isArray(db[k])) db[k]=[];
   db.seq ||= {};
-  for(const k of ['offers','sources','alerts','favorites','events']) db.seq[k]=Math.max(db.seq[k]||0,...db[k].map(x=>Number(x.id)||0),0);
+  for(const k of ['offers','sources','alerts','favorites','events']) db.seq[k]=db[k].reduce((max,row)=>Math.max(max,Number(row.id)||0),Number(db.seq[k])||0);
   return db;
 }
 
@@ -56,12 +64,17 @@ async function requestRemote(query='',options={}){
     redirect:'error',
   });
   if(!response.ok)throw new Error(`Supabase storage HTTP ${response.status}`);
-  return options.method ? null : response.json();
+  return options.method && !options.jsonResponse ? null : response.json();
 }
 
 export async function migrate(){
   if(!remoteUrl)return load();
-  const rows=await requestRemote('?id=eq.1&select=state');
+  if(normalizedStorage){
+    normalize(await normalizedStorage.load({activate:true}));
+    remoteReady=true;
+    return db;
+  }
+  const rows=await requestRemote('/nova_state?id=eq.1&select=state');
   if(!Array.isArray(rows))throw new Error('Unexpected Supabase storage response');
   normalize(rows[0]?.state || readPrivateSeed() || blank());
   remoteReady=true;
@@ -77,12 +90,11 @@ function scheduleFlush(delay){
 }
 
 export function save(){
-  if(db.events.length>2000)db.events.splice(0,db.events.length-2000);
+  if(!normalizedStorage && db.events.length>2000)db.events.splice(0,db.events.length-2000);
   if(remoteUrl){
     if(!remoteReady)throw new Error('Supabase storage has not been loaded');
     dirty++;
-    // The crawler changes many sources per cycle. Batch snapshots to keep the
-    // free tiers' bandwidth and database write volume small.
+    // Batch changed rows to keep free-tier requests and write volume small.
     scheduleFlush(60000);
     return;
   }
@@ -102,7 +114,8 @@ export async function flushSave(){
       while(persisted<dirty){
         const revision=dirty;
         const state=structuredClone(db);
-        await requestRemote('?on_conflict=id',{
+        if(normalizedStorage) await normalizedStorage.persist(state);
+        else await requestRemote('/nova_state?on_conflict=id',{
           method:'POST',
           headers:{'Content-Type':'application/json',Prefer:'resolution=merge-duplicates,return=minimal'},
           body:JSON.stringify({id:1,state,updated_at:new Date().toISOString()}),
@@ -118,7 +131,41 @@ export async function flushSave(){
   if(writeTask)await writeTask;
 }
 
-export function storageStatus(){return {provider:remoteUrl?'supabase':'local',ready:!remoteUrl||remoteReady,synced:!remoteUrl||persisted===dirty,error:!!lastPersistError};}
+export function storageStatus(){return {provider:remoteUrl?'supabase':'local',schema:normalizedStorage?'normalized':remoteUrl?'snapshot':'local',ready:!remoteUrl||remoteReady,synced:!remoteUrl||persisted===dirty,error:!!lastPersistError};}
+
+export async function refreshStorage(){
+  if(refreshTask)return refreshTask;
+  if(!normalizedStorage || dirty!==persisted || writeTask || nativeWrites || !normalizedStorage.dueForRefresh())return;
+  const revision=dirty, native=nativeRevision;
+  refreshTask=(async()=>{
+    const state=await normalizedStorage.load({canAdopt:()=>dirty===revision && dirty===persisted && !writeTask && !nativeWrites && nativeRevision===native});
+    if(state)normalize(state);
+  })().finally(()=>{refreshTask=null});
+  return refreshTask;
+}
+
+export async function reserveBraveBudget(month,purpose,limit){
+  if(!normalizedStorage)return null;
+  return normalizedStorage.reserveBrave(month,purpose,limit);
+}
+
+export async function importLegacySnapshot(){
+  if(!remoteUrl)throw new Error('Configure server-side Supabase variables before importing');
+  return requestRemote('/rpc/nova_import_snapshot',{method:'POST',body:'{}',headers:{'Content-Type':'application/json'},jsonResponse:true});
+}
+
+export async function persistAlertRow(alert){
+  if(!normalizedStorage)return null;
+  nativeWrites++;nativeRevision++;
+  try{
+    const row=await normalizedStorage.createAlert(alert);
+    const existing=db.alerts.find(item=>item.id===row.id);
+    if(existing)Object.assign(existing,row);else db.alerts.push(row);
+    lastPersistError=null;
+    return row;
+  }catch(error){lastPersistError=error.message;throw error;}
+  finally{nativeWrites--;nativeRevision++;}
+}
 
 for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{
   const deadline=setTimeout(()=>process.exit(1),25000);
@@ -127,7 +174,10 @@ for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{
     clearTimeout(deadline);process.exit(1);
   });
 });
-export function id(kind){db.seq[kind]=(db.seq[kind]||0)+1;return db.seq[kind];}
+export function id(kind){
+  if(normalizedStorage)return normalizedStorage.nextId(kind);
+  db.seq[kind]=(db.seq[kind]||0)+1;return db.seq[kind];
+}
 export function reset(next=blank()){db=next;save();}
 export function event(type,title,details={},extra={}){const x={id:id('events'),type,title,details,created_at:new Date().toISOString(),...extra};db.events.push(x);save();return x;}
 if(!remoteUrl)load();

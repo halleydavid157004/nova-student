@@ -1,0 +1,105 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {changesBetween,createNormalizedStorage} from '../src/storage/normalized.js';
+
+const blank=()=>({offers:[],sources:[],alerts:[],events:[],favorites:[],runtime:{}});
+
+test('row changes preserve unrelated rows and include expected field values',()=>{
+  const before={...blank(),offers:[{id:1,title:'Approved',status:'active'},{id:2,title:'Other',status:'pending'}]};
+  const after=structuredClone(before);
+  after.offers[0].title='Edited';after.offers[0].updated_at='2026-09-30T00:00:00Z';
+  const changes=changesBetween(before,after);
+  assert.deepEqual(changes,[{collection:'offers',patch:{id:1,title:'Edited'},expected:{title:'Approved'},operation:'upsert'}]);
+  assert.ok(!JSON.stringify(changes).includes('Other'));
+  assert.equal(changesBetween(before,before).length,0);
+});
+
+test('row deletions require expected content and budget counters never enter runtime writes',()=>{
+  const before={...blank(),alerts:[{id:4,email:'fixture@example.invalid',enabled:true}],runtime:{brave:{month:'2026-09',used:1,lookupUsed:0,lastError:null}}};
+  const after=structuredClone(before);after.alerts=[];after.runtime.brave.used=2;
+  const changes=changesBetween(before,after);
+  assert.equal(changes.length,1);
+  assert.equal(changes[0].operation,'delete');
+  assert.equal(changes[0].expected.email,'fixture@example.invalid');
+  after.runtime.brave.lastError='network';
+  const runtime=changesBetween(before,after).find(c=>c.collection==='runtime');
+  assert.deepEqual(runtime.patch.value,{lastError:'network'});
+  assert.ok(!JSON.stringify(runtime).includes('lookupUsed'));
+});
+
+test('server ID blocks are unique between writers; failures keep changes pending',async()=>{
+  let high=10,stored=blank(),fail=true;
+  const calls=[];
+  const rpc=async(name,args)=>{
+    calls.push({name,args});
+    if(name==='nova_activate_rows')return structuredClone(stored);
+    if(name==='nova_reserve_ids'){
+      const next=high;high+=1000;
+      return Object.fromEntries(['offers','sources','alerts','events'].map(k=>[k,{next,last:next+999}]));
+    }
+    if(name==='nova_apply_changes'){
+      if(fail)throw new Error('HTTP 503');
+      for(const c of args.changes)stored[c.collection].push(c.patch);
+      return {applied:args.changes.length};
+    }
+    throw new Error('Unexpected RPC');
+  };
+  const first=createNormalizedStorage(rpc),second=createNormalizedStorage(rpc);
+  const state=await first.load({activate:true});await second.load({activate:true});
+  assert.notEqual(first.nextId('offers'),second.nextId('offers'));
+  state.offers.push({id:first.nextId('offers'),title:'Private candidate'});
+  await assert.rejects(first.persist(state),/503/);
+  fail=false;await first.persist(state);
+  assert.equal(stored.offers.length,1);
+  assert.ok(calls.filter(c=>c.name==='nova_apply_changes').every(c=>c.args.changes.length===1));
+  await first.persist(state);
+  assert.equal(stored.offers.length,1);
+});
+
+test('concurrent mutations during persistence are retained for a later transaction',async()=>{
+  const saved=[];let release;
+  const storage=createNormalizedStorage(async(name,args)=>{
+    if(name==='nova_activate_rows')return blank();
+    if(name==='nova_reserve_ids')return Object.fromEntries(['offers','sources','alerts','events'].map(k=>[k,{next:1,last:1000}]));
+    saved.push(args.changes);
+    if(saved.length===1)await new Promise(resolve=>{release=resolve});
+  });
+  const state=await storage.load({activate:true});
+  state.sources.push({id:1,name:'First'});
+  const first=storage.persist(state);
+  state.sources.push({id:2,name:'Second'});release();await first;
+  await storage.persist(state);
+  assert.deepEqual(saved.map(batch=>batch.map(c=>c.patch.id)),[[1],[2]]);
+});
+
+test('a stale refresh is discarded before changing the persistence baseline',async()=>{
+  let release, safe=true;const saved=[];
+  const storage=createNormalizedStorage(async(name,args)=>{
+    if(name==='nova_activate_rows')return blank();
+    if(name==='nova_reserve_ids')return Object.fromEntries(['offers','sources','alerts','events'].map(k=>[k,{next:1,last:1000}]));
+    if(name==='nova_load_rows')return new Promise(resolve=>{release=()=>resolve({...blank(),offers:[{id:9,title:'Remote'}]})});
+    saved.push(args.changes);
+  });
+  const state=await storage.load({activate:true});
+  const read=storage.load({canAdopt:()=>safe});
+  state.offers.push({id:1,title:'Local'});safe=false;release();
+  assert.equal(await read,null);
+  await storage.persist(state);
+  assert.deepEqual(saved[0].map(c=>[c.operation,c.patch.id]),[['upsert',1]]);
+});
+
+test('an alert committed during a catalog write is preserved in the baseline',async()=>{
+  let release;const saved=[];
+  const storage=createNormalizedStorage(async(name,args)=>{
+    if(name==='nova_activate_rows')return blank();
+    if(name==='nova_reserve_ids')return Object.fromEntries(['offers','sources','alerts','events'].map(k=>[k,{next:1,last:1000}]));
+    if(name==='nova_create_alert')return {...args.input,created_at:'2026-09-30T00:00:00.000Z'};
+    saved.push(args.changes);
+    if(saved.length===1)await new Promise(resolve=>{release=resolve});
+  });
+  const state=await storage.load({activate:true});state.offers.push({id:1,title:'Catalog'});
+  const pending=storage.persist(state);
+  state.alerts.push(await storage.createAlert({id:1,email:'fixture@example.invalid'}));
+  release();await pending;await storage.persist(state);
+  assert.equal(saved.length,1,'the next flush must not reinsert an independently committed alert');
+});
