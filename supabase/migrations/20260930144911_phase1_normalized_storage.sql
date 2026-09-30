@@ -15,6 +15,8 @@ grant select,insert,update on public.nova_state to service_role;
 create schema if not exists extensions;
 create extension if not exists unaccent with schema extensions;
 create extension if not exists pg_trgm with schema extensions;
+grant usage on schema extensions to service_role;
+grant execute on function extensions.unaccent(regdictionary,text) to service_role;
 
 create function nova_private.touch_updated_at() returns trigger
 language plpgsql set search_path = '' as $$

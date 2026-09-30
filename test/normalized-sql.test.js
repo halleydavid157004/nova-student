@@ -35,6 +35,7 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
       if not exists(select 1 from nova_private.offers where search_document @@ plainto_tsquery('english','cloud')) then raise exception 'English FTS'; end if;
       if has_table_privilege('anon','nova_private.subscribers','SELECT') or has_table_privilege('anon','nova_private.alerts','SELECT') then raise exception 'Private data exposed'; end if;
       if has_function_privilege('anon','public.nova_load_rows()','EXECUTE') or has_function_privilege('authenticated','public.nova_apply_changes(jsonb)','EXECUTE') then raise exception 'Privileged RPC exposed'; end if;
+      if not has_schema_privilege('service_role','extensions','USAGE') then raise exception 'Backend cannot generate search document'; end if;
     end $$;
     commit;
     begin;
