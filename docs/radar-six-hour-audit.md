@@ -6,6 +6,8 @@ Los registros del despliegue `6af4cc2b` mostraban ocho consultas de Brave cada t
 
 La implementación nueva reserva ventanas de seis horas, rota cuatro consultas, cuenta todos los intentos de Brave antes del envío, guarda presupuesto y cursor en Supabase y comparte la ejecución entre el horario y el endpoint administrativo. Las respuestas del proveedor se resumen en categorías; no se guardan cuerpos de error ni claves. Los 401/403, 402, 429, errores de red y fallos de guardado quedan visibles. El límite máximo de la aplicación es 600 solicitudes por mes UTC.
 
+Las búsquedas auxiliares de IA tienen un máximo adicional de 100 solicitudes mensuales, reservando al menos 500 del límite predeterminado para los ciclos de descubrimiento.
+
 ## Ejecución gratuita
 
 El horario de GitHub Actions es `17 */6 * * *`. Solo consulta el servicio existente; no obtiene claves ni crea un segundo escritor de la base. Despierta Render si es necesario y verifica el resultado real de Brave. El servidor también programa los mismos horarios mientras está activo. El límite mensual y las reservas sobreviven a un reinicio. La ejecución se detiene si falta la clave, el worker está desactivado o el proveedor devuelve un error; alcanzar el presupuesto es una pausa esperada.

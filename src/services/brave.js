@@ -31,6 +31,7 @@ export function braveStatus(now = Date.now()) {
   const state = braveState();
   const month = monthAt(now);
   const used = state.month === month ? Math.max(0, Number(state.used) || 0) : 0;
+  const lookupUsed = state.month === month ? Math.max(0, Number(state.lookupUsed) || 0) : 0;
   const limit = monthlyLimit();
   return {
     enabled: Boolean(process.env.BRAVE_SEARCH_API_KEY?.trim()),
@@ -42,7 +43,7 @@ export function braveStatus(now = Date.now()) {
     lastError: state.lastError || null,
     lastHttpStatus: state.lastHttpStatus || null,
     lastRun: state.lastRun || null,
-    budget: {month, used, limit, remaining: Math.max(0, limit - used)},
+    budget: {month, used, limit, remaining: Math.max(0, limit - used), lookupUsed, lookupLimit: 100},
     retryAt: state.retryAt > now ? new Date(state.retryAt).toISOString() : null,
   };
 }
@@ -55,13 +56,15 @@ function retryDelay(value, now) {
 
 // All Brave calls, including AI-assisted URL lookup, share this reservation.
 // Count and persist attempts BEFORE sending: retries/restarts cannot erase usage.
-export async function braveSearch(query, {count = 20, freshness} = {}) {
+export async function braveSearch(query, {count = 20, freshness, purpose = 'discovery'} = {}) {
   const key = process.env.BRAVE_SEARCH_API_KEY?.trim();
   if (!key) return {enabled: false, results: [], skipped: 'not_configured'};
   const state = braveState();
   const now = Date.now();
   const status = braveStatus(now);
   if (status.budget.remaining === 0) return {enabled: true, results: [], skipped: 'monthly_limit'};
+  if (purpose === 'lookup' && status.budget.lookupUsed >= 100)
+    return {enabled: true, results: [], skipped: 'lookup_limit'};
   if (state.retryAt > now) return {enabled: true, results: [], skipped: 'cooldown'};
   if (requestInFlight) return {enabled: true, results: [], skipped: 'busy'};
   requestInFlight = true;
@@ -69,8 +72,10 @@ export async function braveSearch(query, {count = 20, freshness} = {}) {
     if (state.month !== status.budget.month) {
       state.month = status.budget.month;
       state.used = 0;
+      state.lookupUsed = 0;
     }
     state.used = Math.max(0, Number(state.used) || 0) + 1;
+    if (purpose === 'lookup') state.lookupUsed = Math.max(0, Number(state.lookupUsed) || 0) + 1;
     state.lastRequestAt = new Date(now).toISOString();
     save();
     try { await flushSave(); }

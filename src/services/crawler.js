@@ -282,11 +282,11 @@ export async function scanSource(source) {
             // If AI requested a real-time search to find the official URL
             if (aiResult && aiResult.needs_search) {
               try {
-                const search = await braveSearch(aiResult.needs_search, {count: 1});
+                const search = await braveSearch(aiResult.needs_search, {count: 1, purpose: 'lookup'});
                 if (!search.error && !search.skipped && search.results[0]?.url) {
-                      aiResult.source_url = search.results[0].url;
-                      aiResult.source_domain = new URL(aiResult.source_url).hostname.replace(/^www\./, '');
-                      console.log(`[Nova AI] Live Search found a candidate URL: ${aiResult.source_url}`);
+                  aiResult.source_url = search.results[0].url;
+                  aiResult.source_domain = new URL(aiResult.source_url).hostname.replace(/^www\./, '');
+                  console.log(`[Nova AI] Live Search found a candidate URL: ${aiResult.source_url}`);
                 } else { aiResult = null; }
               } catch(e) { aiResult = null; }
             }

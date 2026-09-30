@@ -65,6 +65,12 @@ test('the shared budget caps auxiliary lookups and resets in the next UTC month'
   assert.equal(braveStatus().budget.used, 1);
   process.env.BRAVE_MONTHLY_LIMIT = '100000';
   assert.equal(braveStatus().budget.limit, 600, 'environment cannot exceed the protective cap');
+  storage.db.runtime.brave.used = 100;
+  storage.db.runtime.brave.lookupUsed = 100;
+  assert.equal((await braveSearch('auxiliary request', {purpose: 'lookup'})).skipped, 'lookup_limit');
+  assert.equal(requests, 2);
+  await braveSearch('scheduled discovery');
+  assert.equal(requests, 3, 'auxiliary lookups cannot consume the reserved discovery capacity');
 });
 
 test('429 stops the batch, retains its consumed attempt and prevents immediate retries', async t => {
