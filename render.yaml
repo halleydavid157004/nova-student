@@ -10,7 +10,9 @@ services:
       - key: PORT
         value: "10000"
       - key: SCAN_INTERVAL_MS
-        value: "1800000"
+        value: "21600000"
+      - key: BRAVE_MONTHLY_LIMIT
+        value: "600"
       - key: DIGEST_INTERVAL_MS
         value: "3600000"
       - key: SCAN_BATCH_SIZE

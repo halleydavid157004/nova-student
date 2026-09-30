@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=8">
+  <link rel="stylesheet" href="/styles.css?v=9">
 </head>
 <body>
   <!-- Fondo decorativo -->
@@ -361,7 +361,14 @@
           <span class="section-label">Inteligencia de fuentes</span>
           <h2>Radar de descubrimiento</h2>
         </div>
-        <span id="radarCount" class="results-count"></span>
+        <div class="radar-header-actions">
+          <span id="radarCount" class="results-count"></span>
+          <button id="radarRefresh" class="btn btn-ghost" type="button">Actualizar</button>
+        </div>
+      </div>
+
+      <div id="radarSchedule" class="radar-schedule" role="status" aria-live="polite">
+        <p>Consultando el estado del radar…</p>
       </div>
 
       <div class="radar-search">
@@ -378,6 +385,7 @@
             Fuentes vigiladas
           </h3>
           <div id="sourceList" class="source-list"></div>
+          <button id="sourceMore" class="btn btn-ghost radar-more" type="button" hidden>Mostrar más fuentes</button>
         </div>
         <div class="radar-panel">
           <h3 class="panel-title">
@@ -502,6 +510,6 @@
     </form>
   </div>
 
-  <script src="/app.js?v=8" type="module"></script>
+  <script src="/app.js?v=9" type="module"></script>
 </body>
 </html>

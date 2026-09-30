@@ -29,6 +29,7 @@ No necesita `npm install`: el backend usa solamente módulos incluidos en Node.j
 
 - Interfaz premium responsive, modo claro/oscuro.
 - Buscador y filtros por país, categoría y método de verificación.
+- Búsqueda sin distinción de tildes, términos combinados y prioridad para coincidencias de marca.
 - Fichas con beneficio, requisitos, pasos y fuente oficial.
 - Favoritos.
 - Alertas por correo: instantáneas, diarias o semanales.
@@ -88,6 +89,20 @@ El SMTP directo no funciona desde servicios Render Free porque bloquea los puert
 Por defecto, el radar puede usar la API pública de StudentOffers únicamente para descubrir posibles fuentes. La ficha visible debe terminar apuntando a la fuente oficial. Puedes desactivar este adaptador con `STUDENTOFFERS_DISCOVERY=false`.
 
 Configura además `BRAVE_SEARCH_API_KEY` para ampliar el descubrimiento web. El agente ejecuta búsquedas periódicas y añade URLs nuevas como **fuentes descubiertas no verificadas**. Una fuente encontrada en buscador nunca se marca automáticamente como oficial.
+
+### Brave y radar cada 6 horas
+
+El radar automático se ejecuta a las **00:17, 06:17, 12:17 y 18:17 UTC**: en Colombia, **01:17, 07:17, 13:17 y 19:17**. La primera puesta en marcha puede realizar el ciclo pendiente tras 30 segundos. Cada ventana se reserva y se guarda antes de hacer consultas: un reinicio dentro de esa ventana no repite la búsqueda. El valor antiguo de `SCAN_INTERVAL_MS` no puede volver a activar ciclos cada 30 minutos.
+
+- Brave rota **4 consultas por ciclo**, incluyendo búsquedas para Colombia y Latinoamérica. No filtra todas las ofertas por fecha de publicación, para conservar programas educativos permanentes.
+- `BRAVE_MONTHLY_LIMIT` fija un límite de **600 solicitudes al mes como máximo**, compartido entre descubrimiento y búsquedas auxiliares de IA. Las consultas auxiliares tienen además un máximo de **100**, para reservar capacidad al horario de seis horas. Cada intento se cuenta y se persiste antes de contactar con Brave; los errores y reinicios no recuperan ese presupuesto. El mes se calcula en UTC. Un 429 detiene el lote y respeta `Retry-After`.
+- [Brave publica $5 de créditos mensuales y un precio de $5 por 1.000 solicitudes de Search](https://brave.com/search/api/). Hasta 600 solicitudes equivalen a $3 con ese precio cuando están cubiertas por créditos disponibles. **El contador controla esta aplicación desde esta versión; los usos anteriores y otros proyectos comparten los créditos de la cuenta.** Revisa el consumo de Brave y mantén desactivado cualquier gasto adicional. No hace falta contratar un cron de Render ni otro servidor.
+- [Radar cada 6 horas](.github/workflows/radar-schedule.yml) visita las rutas públicas para iniciar el servicio y comprobar que Brave terminó su ciclo. No contiene claves ni arranca otro proceso contra Supabase. Puede ejecutarse también con **GitHub → Actions → Radar cada 6 horas → Run workflow**. Tiene un máximo de cuatro minutos por ejecución y usa un runner Linux estándar.
+- Render Free se duerme cuando no recibe tráfico; el workflow solicita el trabajo programado y el worker del mismo servidor lo realiza. GitHub puede retrasar u omitir ejecuciones programadas durante congestión y desactivar el horario de un repositorio público tras 60 días sin actividad. Es una programación gratuita de mejor esfuerzo, sin garantía de hora exacta; revisa Actions y reactiva el workflow si GitHub lo deshabilita.
+
+`/api/worker-status` muestra la próxima ventana, el último ciclo, el resultado de Brave y el consumo controlado. La vista **Radar** muestra la conexión, la última búsqueda y la próxima ventana; diferencia fuentes restringidas, rastreo no permitido, fuentes desaparecidas y errores de conexión. La lista se carga por páginas de 80 fuentes para evitar cientos de filas al entrar.
+
+El cursor de escaneo y el historial del worker se guardan junto con la instantánea de Supabase. Los ciclos automáticos y manuales comparten una sola ejecución. Un escaneo administrativo puede revisar fuentes fuera del horario; Brave mantiene su reserva por ventana y su presupuesto mensual.
 
 Las fichas creadas automáticamente permanecen pendientes y se muestran como pistas en el Radar. El catálogo público, las alertas y Nova AI usan solo fichas activas con `official: true` o `reviewed: true`. Una respuesta HTTP 200 o un texto que contiene «student» no confirma por sí solo que exista un beneficio. Revisa el beneficio, las condiciones, la vigencia y el enlace de la marca antes de aprobar una ficha.
 
