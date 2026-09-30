@@ -1,7 +1,10 @@
 .env
-.env
+.env.*
+!.env.example
 .DS_Store
 node_modules/
-/storage/*.json
-/storage/*.log
-/storage/*.tmp
+/storage/
+coverage/
+playwright-report/
+test-results/
+*.lnk
