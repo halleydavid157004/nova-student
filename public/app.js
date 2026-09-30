@@ -435,17 +435,29 @@ async function openOffer(id) {
         <div class="offer-info-row">
           <span class="info-pill">🔐 ${esc(o.verification)}</span>
           <span class="info-pill">${o.requires_card ? '💳 Puede requerir tarjeta' : '🚫 Sin tarjeta'}</span>
-          <span class="info-pill">📅 Verificada: ${new Date(o.verified_at).toLocaleDateString('es', { dateStyle: 'medium' })}</span>
+          <span class="info-pill">📅 ${o.liveness_verified_at ? 'Verificada con evidencia' : 'Última comprobación'}: ${new Date(o.liveness_verified_at || o.verified_at).toLocaleDateString('es', { dateStyle: 'medium' })}</span>
+          ${o.liveness_status && o.liveness_status !== 'active' ? '<span class="info-pill">🔎 Necesita revisión</span>' : ''}
           ${o.official ? '<span class="info-pill">✅ Fuente oficial</span>' : ''}
           ${(o.countries || []).includes('GLOBAL') ? '<span class="info-pill">🌍 Global</span>' : ''}
         </div>
       </div>
 
+      ${o.liveness_verified_at && o.source_excerpt ? `<div class="offer-section" id="offerEvidence"><h3>Evidencia de la última verificación</h3><blockquote>${esc(o.source_excerpt)}</blockquote></div>` : ''}
+      <form id="offerReportForm" class="offer-section"><label for="offerReportReason">¿Qué ocurrió al intentar reclamarla?</label>
+        <select id="offerReportReason"><option value="worked">Me funcionó</option><option value="expired">La oferta terminó</option><option value="changed">Las condiciones cambiaron</option><option value="broken">El enlace no funciona</option></select>
+        <button class="btn-primary" type="submit">Enviar reporte</button>
+      </form>
       <a class="source-cta" href="${esc(safeUrl(o.source_url))}" target="_blank" rel="noopener noreferrer">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
         ${o.official ? 'Ir a la fuente oficial' : 'Ver fuente para verificar la oferta'}
       </a>`;
 
+    $('#offerReportForm').addEventListener('submit',async event=>{
+      event.preventDefault();const button=event.target.querySelector('button');button.disabled=true;
+      try{await apiFetch(`/api/offers/${id}/reports`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:$('#offerReportReason').value})});toast('Gracias. Tu reporte se tendrá en cuenta en la revisión.','success');}
+      catch{toast('No se pudo enviar el reporte. Intenta más tarde.','error');}
+      finally{button.disabled=false;}
+    });
     modal.removeAttribute('hidden');
     modal.querySelector('.modal-panel')?.focus();
     document.body.style.overflow = 'hidden';
