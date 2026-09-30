@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['.github/workflows/radar-schedule.yml']
+    paths: ['.github/workflows/radar-schedule.yml', 'docs/supabase-radar-cron.sql']
 
 permissions: {}
 concurrency:
