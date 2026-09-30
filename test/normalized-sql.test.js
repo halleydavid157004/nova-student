@@ -14,7 +14,7 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
   const fixture = JSON.parse(readFileSync('test/fixtures/legacy-state.json','utf8'));
   fixture.runtime.brave.month = new Date().toISOString().slice(0,7);
   const literal = JSON.stringify(fixture).replaceAll("'","''");
-  const migration = readFileSync('supabase/migrations/20260930144911_phase1_normalized_storage.sql','utf8');
+  const migration = readFileSync('supabase/migrations/20260930194450_phase1_normalized_storage.sql','utf8');
   const rollback = readFileSync('supabase/rollback/phase1_normalized_storage.sql','utf8');
   const sql = `
     create role anon; create role authenticated; create role service_role bypassrls;

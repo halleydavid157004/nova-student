@@ -2,7 +2,7 @@
 
 ## Alcance y archivos
 
-Plan: crear tablas privadas, importar la instantánea sin perder identificadores ni presupuesto, sustituir las escrituras completas por cambios por fila y probar el corte y su rollback. Archivos: `supabase/migrations/20260930144911_phase1_normalized_storage.sql`, `supabase/rollback/phase1_normalized_storage.sql`, `src/storage/normalized.js`, `src/db.js`, `src/migrate-state.js`, `src/services/brave.js`, `server.js`, tests, workflow Test y documentación. No cambia la regla de publicación ni traslada todavía el radar a Actions.
+Plan: crear tablas privadas, importar la instantánea sin perder identificadores ni presupuesto, sustituir las escrituras completas por cambios por fila y probar el corte y su rollback. Archivos: `supabase/migrations/20260930194450_phase1_normalized_storage.sql`, `supabase/rollback/phase1_normalized_storage.sql`, `src/storage/normalized.js`, `src/db.js`, `src/migrate-state.js`, `src/services/brave.js`, `server.js`, tests, workflow Test y documentación. No cambia la regla de publicación ni traslada todavía el radar a Actions.
 
 ## Modelo y permisos
 
@@ -86,3 +86,11 @@ Sin una base local, el test SQL se omite en `npm test`; el job `normalized-datab
 - La migración puede bloquear brevemente una escritura antigua mientras importa. La activación exige disponibilidad de Supabase; falla sin arrancar una base temporal.
 
 Documentación oficial consultada el 2026-09-30: [RLS y vistas invoker](https://supabase.com/docs/guides/database/postgres/row-level-security), [búsqueda de texto](https://supabase.com/docs/guides/database/full-text-search), [seguridad de la Data API](https://supabase.com/docs/guides/api/securing-your-api), [changelog](https://supabase.com/changelog), [cambios PostgreSQL 15.19/17.11](https://supabase.com/changelog/postgres-15-19-17-11-breaking-changes). No se usan operadores personalizados, `ltree`, cifrado PGP legado ni los casos afectados de `btree_gist`. El acceso REST con `fetch` evita depender de bibliotecas Supabase JS que ya retiraron soporte a Node 20. Los límites y decisiones gratuitas están en `FREE_TIER_LIMITS.md`.
+
+## Comprobación del proyecto actual — 2026-09-30 UTC
+
+Migración aplicada con versión registrada `20260930194450`, igual al archivo del repositorio. Las tablas quedaron en modo **legacy**; falta el despliegue manual para activar la versión 2.2.0. Recuentos contrastados: 357 ofertas, 708 fuentes, 1.056 eventos, 357 versiones iniciales y 34 fichas publicadas; cero suscriptores/alertas. Brave mantuvo 20 intentos de septiembre (4 auxiliares). Tamaño de base tras importar: 18.705.555 bytes, dentro del plan Free existente. La lectura con rol `anon` devolvió 34 fichas.
+
+Los asesores no reportaron errores ni advertencias de seguridad. Informativos: [nova_state con RLS sin política](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy), protección intencionada del formato antiguo que solo usa el backend; e [índices recién creados sin uso](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index), que deben medirse después del despliegue antes de considerar retirarlos. No se concedió lectura anónima al JSON antiguo. El script [supabase-normalized-verify.sql](supabase-normalized-verify.sql) reproduce comprobaciones de permisos y recuentos sin mostrar datos personales.
+
+El sitio seguía en 2.1.0 tras la migración, con almacenamiento sano. El radar completó las cuatro consultas de Brave de las 18:17 UTC sin errores y descubrió 23 fuentes; son pistas, no ofertas aprobadas. No se realizó un despliegue desde Render.
