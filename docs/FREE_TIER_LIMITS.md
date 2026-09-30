@@ -17,4 +17,4 @@ Consulta: **2026-09-30 UTC**. Fuentes oficiales; no es una inspección del consu
 
 ## Controles y límites pendientes
 
-No se creó ni actualizó ningún recurso de pago. El consumo de otras aplicaciones de una cuenta no se puede deducir del contador de Nova. El actual presupuesto de Brave protege un único escritor; la Fase 1/3 debe convertirlo en reserva transaccional. El correo actual todavía carece de cola y tope persistente: no tratarlo como listo para una campaña pública. Auth, Pages y Playwright se documentarán con sus fuentes antes de esas fases.
+No se creó ni actualizó ningún recurso de pago. El consumo de otras aplicaciones de una cuenta no se puede deducir del contador de Nova. La Fase 1 convierte el presupuesto de Brave en reserva transaccional por mes UTC, compartida entre procesos; el modo antiguo `snapshot` conserva la limitación de un escritor. La coordinación de ciclos pasa a Actions en Fase 3. El correo actual todavía carece de cola y tope persistente: no tratarlo como listo para una campaña pública. Auth, Pages y Playwright se documentarán con sus fuentes antes de esas fases.

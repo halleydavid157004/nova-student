@@ -4,7 +4,7 @@ Una plataforma propia para descubrir, buscar y vigilar beneficios para estudiant
 
 ## Estado del proyecto
 
-La arquitectura actual conserva una instantánea privada en Supabase y ejecuta el radar dentro de Render. La [auditoría de código](docs/AUDIT.md) describe las limitaciones y el orden de las fases; no se presentan como terminadas las funciones de la misión que aún no existen. Los [límites gratuitos](docs/FREE_TIER_LIMITS.md) tienen fuentes oficiales y fecha de consulta.
+La versión 2.2.0 usa tablas privadas normalizadas en Supabase, escrituras por fila y presupuesto de Brave transaccional. El radar todavía se ejecuta dentro de Render. La [Fase 1](docs/PHASE_1.md) documenta migración, despliegue manual y rollback; el cambio requiere aplicar el SQL antes de arrancar esta versión. La [auditoría de código](docs/AUDIT.md) describe las limitaciones y el orden de las fases; no se presentan como terminadas las funciones de la misión que aún no existen. Los [límites gratuitos](docs/FREE_TIER_LIMITS.md) tienen fuentes oficiales y fecha de consulta.
 
 ## Arranque en Windows
 
@@ -56,7 +56,7 @@ npm test
 node --experimental-test-coverage --test test/*.test.js
 ```
 
-`npm ci` instala jsdom de desarrollo; no es necesario para arrancar el servidor. Los tests usan datos sintéticos, HTTP local y proveedores simulados. CI ejecuta Node 20/24 en Linux y prueba el lanzador en Windows. Las pruebas UI actuales son jsdom: todavía no prueban layout, entrega de correos ni flujos E2E con Playwright. La auditoría recoge cobertura y huecos.
+`npm ci` instala jsdom de desarrollo; no es necesario para arrancar el servidor. Los tests usan datos sintéticos, HTTP local y proveedores simulados. CI ejecuta Node 20/24 en Linux, el lanzador en Windows y migración/rollback en PostgreSQL 17 real con fixtures sintéticos. Las pruebas UI actuales son jsdom: todavía no prueban layout, entrega de correos ni flujos E2E con Playwright. La auditoría recoge cobertura y huecos.
 
 Cada fase tendrá un PR propio con plan, archivos, pruebas y riesgos. Antes de publicar, revisa `git diff` y `git status`; nunca subas `.env`, direcciones de suscriptores ni copias privadas. Se eliminaron el uploader automático y los lanzadores duplicados para evitar rutas personales y commits indiscriminados.
 
@@ -64,29 +64,15 @@ Cada fase tendrá un PR propio con plan, archivos, pruebas y riesgos. Antes de p
 
 Los favoritos se guardan en el navegador de cada visitante. La base JSON local de Render Free pierde sus cambios al reiniciar o desplegar. Configura Supabase para conservar alertas, fuentes y eventos antes de registrar suscripciones reales. Los archivos de `storage/` están ignorados por Git. No subas direcciones de suscriptores ni secretos al repositorio.
 
-## Persistencia gratuita con Supabase — arquitectura actual
+## Persistencia gratuita con Supabase
 
-1. Crea un proyecto en el plan **Free** de Supabase. En **SQL Editor**, ejecuta este SQL una sola vez:
+1. En el proyecto **Free** existente, aplica [la migración de Fase 1](supabase/migrations/20260930144911_phase1_normalized_storage.sql) con el propietario de la base. Importa `nova_state` si existe y conserva un puente para el servidor anterior. No expongas el esquema `nova_private` en la Data API; mantén `public` expuesto y la exposición automática de nuevas tablas desactivada.
+2. En Render Free, configura `SUPABASE_URL` y `SUPABASE_SECRET_KEY` (`sb_secret_`) **solo en el servidor**, y `SUPABASE_STORAGE_MODE=normalized`. Conserva las claves actuales si ya funcionan.
+3. Haz **Manual Deploy → Deploy latest commit**. El arranque importa la última instantánea y activa las tablas. `/api/health` debe indicar versión `2.2.0`, `storage.schema: normalized`, proveedor `supabase`, `ready: true`, `synced: true`, `error: false`.
 
-   ```sql
-   create table if not exists public.nova_state (
-     id integer primary key check (id = 1),
-     state jsonb not null,
-     updated_at timestamptz not null default now()
-   );
-   alter table public.nova_state enable row level security;
-   revoke all on public.nova_state from public, anon, authenticated, service_role;
-   grant select, insert, update on public.nova_state to service_role;
-   ```
+Solo `public_offers` permite lectura pública de fichas activas oficiales o revisadas. Suscriptores, alertas y RPC privados no admiten acceso anónimo. Las escrituras por fila protegen modificaciones simultáneas; el presupuesto se reserva en PostgreSQL antes de llamar a Brave. La [guía de Fase 1](docs/PHASE_1.md) explica pruebas, conflictos, recarga de memoria y rollback. `npm run migrate:state` repite la importación antes del corte e imprime solo recuentos.
 
-   También puedes ejecutar [docs/supabase-setup.sql](docs/supabase-setup.sql), que incluye la comprobación de permisos. [docs/supabase-verify.sql](docs/supabase-verify.sql) prueba lectura, inserción y actualización con `service_role` dentro de una transacción que se revierte; no deja datos de prueba. Ejecútalo antes de iniciar el servidor. La Data API debe estar activada y exponer el esquema `public`. Los permisos explícitos de `service_role` permiten el acceso del backend; `nova_state` no necesita permisos para `anon` ni `authenticated`. Mantén desactivada la exposición automática de nuevas tablas.
-
-2. En el servicio **Free** existente de Render, agrega `SUPABASE_URL` con la URL HTTPS del proyecto y `SUPABASE_SECRET_KEY` con una clave que empiece por `sb_secret_` (**Settings → API Keys** en Supabase). Guárdala solo como variable secreta del servidor; no la compartas por chat ni la pongas en GitHub o en el navegador. Mantén `DATABASE_PATH` sin cambiar y el plan de Render en Free.
-3. Despliega el último commit de `main`. Abre `/api/health`: `storage.provider` debe ser `supabase`, `ready: true`, `synced: true` y `error: false`. Si falta una variable, la tabla no existe o Supabase no responde, el servidor no arranca con una base temporal: revisa los registros y la configuración.
-
-En el primer arranque de una tabla vacía se cargan las fichas semilla. Una copia privada anterior se puede importar **antes** de ese primer arranque con `SEED_DATABASE_PATH` apuntando a un JSON accesible solo por el servidor; los datos temporales de Render no se transfieren solos. En Supabase Free hay 500 MB de base, 5 GB de salida incluidos, pausas por poca actividad y no hay copias automáticas. Descarga copias privadas periódicas de la fila `nova_state` desde el panel de Supabase; evita publicar la fila porque puede contener correos de suscriptores. Esta modalidad guarda una instantánea desde **un solo proceso escritor**: no ejecutes `npm run scan` en otra máquina contra la misma tabla ni escales a varias instancias. El worker de Render Free solo funciona mientras el servicio está despierto y no garantiza escaneos continuos.
-
-El formulario informa si la alerta está guardada pero el proveedor de correo aún no está configurado. Guardar una alerta no prueba que un mensaje se haya entregado.
+La semilla se carga cuando el catálogo está vacío. `SEED_DATABASE_PATH` sirve para el almacenamiento local/antiguo; importa una copia privada anterior antes del corte, fuera del repositorio. Free incluye 500 MB y no copias diarias automáticas: conserva backups privados de las tablas. No publiques correos ni exports. Guardar una alerta no confirma entrega de correo. El radar sigue dependiendo de Render despierto hasta la Fase 3.
 
 ## Protección de recursos gratuitos
 
@@ -123,11 +109,11 @@ En Supabase, **Integrations → Cron** muestra el trabajo activo y su historial.
 
 `/api/worker-status` muestra la próxima ventana, el último ciclo, el resultado de Brave y el consumo controlado. La vista **Radar** muestra la conexión, la última búsqueda y la próxima ventana; diferencia fuentes restringidas, rastreo no permitido, fuentes desaparecidas y errores de conexión. La lista se carga por páginas de 80 fuentes para evitar cientos de filas al entrar.
 
-El cursor de escaneo y el historial del worker se guardan junto con la instantánea de Supabase. Los ciclos automáticos y manuales comparten una sola ejecución. Un escaneo administrativo puede revisar fuentes fuera del horario; Brave mantiene su reserva por ventana y su presupuesto mensual.
+El cursor y metadatos del worker se guardan por clave en `app_runtime`; la importación conserva el último ciclo conocido en `worker_runs`. El registro de cada ejecución nueva llegará en Fase 3. Los ciclos automáticos y manuales comparten una sola ejecución. Un escaneo administrativo puede revisar fuentes fuera del horario; Brave mantiene su reserva por ventana y su presupuesto mensual.
 
 Las fichas creadas automáticamente permanecen pendientes y se muestran como pistas en el Radar. El catálogo público, las alertas y Nova AI usan solo fichas activas con `official: true` o `reviewed: true`. Una respuesta HTTP 200 o un texto que contiene «student» no confirma por sí solo que exista un beneficio. Revisa el beneficio, las condiciones, la vigencia y el enlace de la marca antes de aprobar una ficha.
 
-Si `DATABASE_PATH` apunta a un volumen persistente vacío, el servidor crea las fichas y fuentes iniciales desde `src/data/seed.js`. Los reinicios posteriores leen el volumen sin sobrescribir sus datos. Para importar una copia privada existente una sola vez, configura `SEED_DATABASE_PATH` con la ruta a esa copia fuera del repositorio. Sin las variables de Supabase, Render Free usa almacenamiento temporal; con Supabase configurado conserva la instantánea remota. Las promociones con fecha de vencimiento dejan de publicarse automáticamente; sus condiciones vigentes se confirman en la fuente oficial.
+Si `DATABASE_PATH` apunta a un volumen persistente vacío, el servidor crea las fichas y fuentes iniciales desde `src/data/seed.js`. Los reinicios posteriores leen el volumen sin sobrescribir sus datos. Para importar una copia privada existente una sola vez, configura `SEED_DATABASE_PATH` con la ruta a esa copia fuera del repositorio. Sin las variables de Supabase, Render Free usa almacenamiento temporal; con Supabase configurado conserva las filas remotas. Las promociones con fecha de vencimiento dejan de publicarse automáticamente; sus condiciones vigentes se confirman en la fuente oficial.
 
 ```bash
 npm run scan
@@ -163,7 +149,7 @@ Para producción, cambia `http://localhost:4310` en `extension/manifest.json`, `
 
 ## Evolución por fases
 
-El orden es: auditoría (0), tablas normalizadas (1), vigencia con evidencia (2), motor Actions (3), catálogo estático/SEO (4), búsqueda (5), Auth y sincronización (6), consentimiento y correo (7), admin por rol (8) y elegibilidad/ahorro/calendario (9). Consulta [AUDIT.md](docs/AUDIT.md) para los riesgos actuales. Toda migración necesita importación idempotente, pruebas y rollback antes del corte; hasta entonces rige la restricción de un único escritor de `nova_state`.
+El orden es: auditoría (0), tablas normalizadas (1), vigencia con evidencia (2), motor Actions (3), catálogo estático/SEO (4), búsqueda (5), Auth y sincronización (6), consentimiento y correo (7), admin por rol (8) y elegibilidad/ahorro/calendario (9). Consulta [AUDIT.md](docs/AUDIT.md) para los riesgos actuales. Toda migración necesita importación idempotente, pruebas y rollback antes del corte; la Fase 1 permite varios escritores por fila, con conflictos explícitos para ediciones del mismo campo. El modo antiguo `snapshot` sigue limitado a un escritor y se reserva al rollback.
 
 ## Reglas de calidad de datos
 

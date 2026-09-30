@@ -1,4 +1,4 @@
-import {db, save, flushSave} from '../db.js';
+import {db, save, flushSave, reserveBraveBudget} from '../db.js';
 import {performance} from 'node:perf_hooks';
 
 export const RADAR_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -74,8 +74,16 @@ export async function braveSearch(query, {count = 20, freshness, purpose = 'disc
       state.used = 0;
       state.lookupUsed = 0;
     }
-    state.used = Math.max(0, Number(state.used) || 0) + 1;
-    if (purpose === 'lookup') state.lookupUsed = Math.max(0, Number(state.lookupUsed) || 0) + 1;
+    let reservation;
+    try { reservation = await reserveBraveBudget(status.budget.month,purpose,status.budget.limit); }
+    catch { state.lastError='storage'; return {enabled:true,results:[],error:'storage'}; }
+    if(reservation){
+      state.used=reservation.used;state.lookupUsed=reservation.lookupUsed;
+      if(reservation.skipped)return {enabled:true,results:[],skipped:reservation.skipped};
+    }else{
+      state.used = Math.max(0, Number(state.used) || 0) + 1;
+      if (purpose === 'lookup') state.lookupUsed = Math.max(0, Number(state.lookupUsed) || 0) + 1;
+    }
     state.lastRequestAt = new Date(now).toISOString();
     save();
     try { await flushSave(); }

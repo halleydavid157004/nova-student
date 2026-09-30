@@ -34,7 +34,7 @@ test('Supabase storage persists ordered snapshots and loads them again',()=>{
     assert.equal(storage.db.alerts[1].email,'second@example.invalid');
   `;
   const result=spawnSync(process.execPath,['--input-type=module','-e',program],{
-    cwd:process.cwd(),encoding:'utf8',env:{...process.env,SUPABASE_URL:'https://sample.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_test',SEED_DATABASE_PATH:''},
+    cwd:process.cwd(),encoding:'utf8',env:{...process.env,SUPABASE_URL:'https://sample.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_test',SUPABASE_STORAGE_MODE:'snapshot',SEED_DATABASE_PATH:''},
   });
   assert.equal(result.status,0,result.stderr);
 });
@@ -46,7 +46,7 @@ test('configured remote storage fails closed when it is unavailable',()=>{
     await migrate();
   `;
   const result=spawnSync(process.execPath,['--input-type=module','-e',program],{
-    cwd:process.cwd(),encoding:'utf8',env:{...process.env,SUPABASE_URL:'https://sample.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_test'},
+    cwd:process.cwd(),encoding:'utf8',env:{...process.env,SUPABASE_URL:'https://sample.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_test',SUPABASE_STORAGE_MODE:'snapshot'},
   });
   assert.notEqual(result.status,0);
   assert.match(result.stderr,/offline/);
@@ -71,7 +71,7 @@ test('failed remote writes remain unsynced and can be retried without losing dat
     assert.equal(storage.storageStatus().synced,true);assert.equal(storage.storageStatus().error,false);
   `;
   const result=spawnSync(process.execPath,['--input-type=module','-e',program],{
-    cwd:process.cwd(),encoding:'utf8',timeout:5000,env:{...process.env,SUPABASE_URL:'https://sample.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_test',SEED_DATABASE_PATH:''},
+    cwd:process.cwd(),encoding:'utf8',timeout:5000,env:{...process.env,SUPABASE_URL:'https://sample.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_test',SUPABASE_STORAGE_MODE:'snapshot',SEED_DATABASE_PATH:''},
   });
   assert.equal(result.status,0,result.stderr);
 });
@@ -97,7 +97,7 @@ test('Brave cannot send a paid request until its budget reservation is durable',
     assert.equal(storage.storageStatus().synced,true);
   `;
   const result=spawnSync(process.execPath,['--input-type=module','-e',program],{
-    cwd:process.cwd(),encoding:'utf8',timeout:10000,env:{...process.env,SUPABASE_URL:'https://sample.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_test',SEED_DATABASE_PATH:'',BRAVE_SEARCH_API_KEY:'test-private-key',BRAVE_MONTHLY_LIMIT:'600'},
+    cwd:process.cwd(),encoding:'utf8',timeout:10000,env:{...process.env,SUPABASE_URL:'https://sample.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_test',SUPABASE_STORAGE_MODE:'snapshot',SEED_DATABASE_PATH:'',BRAVE_SEARCH_API_KEY:'test-private-key',BRAVE_MONTHLY_LIMIT:'600'},
   });
   assert.equal(result.status,0,result.stderr);
 });
@@ -118,7 +118,7 @@ test('shutdown waits for a remote write taking longer than eight seconds',()=>{
   `;
   try {
     const result=spawnSync(process.execPath,['--input-type=module','-e',program],{
-      cwd:process.cwd(),encoding:'utf8',timeout:20000,env:{...process.env,SUPABASE_URL:'https://sample.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_test',SEED_DATABASE_PATH:'',SHUTDOWN_TEST_MARKER:marker},
+      cwd:process.cwd(),encoding:'utf8',timeout:20000,env:{...process.env,SUPABASE_URL:'https://sample.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_test',SUPABASE_STORAGE_MODE:'snapshot',SEED_DATABASE_PATH:'',SHUTDOWN_TEST_MARKER:marker},
     });
     assert.equal(result.status,0,result.stderr);assert.equal(readFileSync(marker,'utf8'),'persisted');
   } finally {rmSync(dir,{recursive:true,force:true});}
