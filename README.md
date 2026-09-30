@@ -2,18 +2,22 @@
 
 Una plataforma propia para descubrir, buscar y vigilar beneficios para estudiantes en todo el mundo: software gratuito, créditos cloud, planes académicos, descuentos, licencias educativas y ofertas verificables con correo institucional, SheerID, GitHub Education u otros métodos.
 
-## Arranque inmediato en Windows (recomendado)
+## Estado del proyecto
+
+La arquitectura actual conserva una instantánea privada en Supabase y ejecuta el radar dentro de Render. La [auditoría de código](docs/AUDIT.md) describe las limitaciones y el orden de las fases; no se presentan como terminadas las funciones de la misión que aún no existen. Los [límites gratuitos](docs/FREE_TIER_LIMITS.md) tienen fuentes oficiales y fecha de consulta.
+
+## Arranque en Windows
 
 1. Descomprime completamente el ZIP.
 2. Ejecuta **ABRIR_NOVA_STUDENT.cmd**.
 3. El lanzador espera a que el servidor responda y abre `http://127.0.0.1:4310`.
-4. Si algo falla, ejecuta **DIAGNOSTICO_NOVA.cmd** o revisa `storage/server.log`.
+4. Si algo falla, abre la ventana **Nova Student Radar Server** o ejecuta `ABRIR_NOVA_STUDENT.cmd --diagnostico`.
 
-El lanzador comprueba Node.js, crea `.env`, inicializa la base si hace falta y detecta una instancia ya iniciada.
+El único lanzador comprueba Node.js, crea `.env` desde el ejemplo, respeta `PORT` y detecta una instancia sana. El servidor inicializa la base si está vacía. Los errores aparecen en su consola; no se genera un `server.log` automáticamente.
 
 ## Arranque manual (sin dependencias)
 
-Requiere únicamente **Node.js 20 o superior**.
+Compatible con **Node.js 20 o superior**. Para nuevas instalaciones se recomienda **Node 24 LTS**: Node 20 está fuera de soporte según la [documentación oficial](https://nodejs.org/en/about/previous-releases), consultada el 2026-09-30. CI verifica compatibilidad con 20 y 24; no modifica el runtime de Render.
 
 ```bash
 cp .env.example .env
@@ -40,15 +44,27 @@ No necesita `npm install`: el backend usa solamente módulos incluidos en Node.j
 - Extensión Chrome/Edge Manifest V3 que detecta ofertas del dominio visitado.
 - Persistencia JSON local o Supabase Postgres opcional para conservar datos en Render Free.
 
-## Email
+## Nova AI — Groq
 
 En Render, configura `GROQ_API_KEY` para activar Nova AI y `ADMIN_TOKEN` con un valor secreto distinto de `change-me-now` para usar los endpoints administrativos. El modelo principal es `openai/gpt-oss-20b`; puedes cambiarlo con `GROQ_MODEL` y configurar alternativas separadas por comas en `GROQ_FALLBACK_MODELS`. `/api/ai/status` indica el modelo que respondió por última vez y la categoría del último error.
 
-Ejecuta `npm test` para comprobar el arranque, las rutas públicas, los controles de acceso y la recuperación ante un modelo bloqueado. Para probar la interfaz en un navegador real hace falta un navegador instalado.
+## Pruebas y revisión de cambios
+
+```bash
+npm ci
+npm test
+node --experimental-test-coverage --test test/*.test.js
+```
+
+`npm ci` instala jsdom de desarrollo; no es necesario para arrancar el servidor. Los tests usan datos sintéticos, HTTP local y proveedores simulados. CI ejecuta Node 20/24 en Linux y prueba el lanzador en Windows. Las pruebas UI actuales son jsdom: todavía no prueban layout, entrega de correos ni flujos E2E con Playwright. La auditoría recoge cobertura y huecos.
+
+Cada fase tendrá un PR propio con plan, archivos, pruebas y riesgos. Antes de publicar, revisa `git diff` y `git status`; nunca subas `.env`, direcciones de suscriptores ni copias privadas. Se eliminaron el uploader automático y los lanzadores duplicados para evitar rutas personales y commits indiscriminados.
+
+## Datos y favoritos
 
 Los favoritos se guardan en el navegador de cada visitante. La base JSON local de Render Free pierde sus cambios al reiniciar o desplegar. Configura Supabase para conservar alertas, fuentes y eventos antes de registrar suscripciones reales. Los archivos de `storage/` están ignorados por Git. No subas direcciones de suscriptores ni secretos al repositorio.
 
-### Persistencia gratuita con Supabase
+## Persistencia gratuita con Supabase — arquitectura actual
 
 1. Crea un proyecto en el plan **Free** de Supabase. En **SQL Editor**, ejecuta este SQL una sola vez:
 
@@ -72,9 +88,11 @@ En el primer arranque de una tabla vacía se cargan las fichas semilla. Una copi
 
 El formulario informa si la alerta está guardada pero el proveedor de correo aún no está configurado. Guardar una alerta no prueba que un mensaje se haya entregado.
 
-### Protección de recursos gratuitos
+## Protección de recursos gratuitos
 
 El chat admite dos peticiones simultáneas y 30 por cada 10 minutos para todo el proceso. El servicio Groq comparte como máximo tres operaciones entre chat y rastreador. Las altas de alertas admiten 20 peticiones por minuto y cuatro simultáneas. Los excesos devuelven HTTP 429 con `Retry-After`, sin acumular una cola ilimitada. Son límites globales para proteger las cuotas gratuitas; no sustituyen autenticación o un control distribuido si el proyecto crece.
+
+## Correo
 
 ### Resend
 
@@ -109,7 +127,7 @@ El cursor de escaneo y el historial del worker se guardan junto con la instantá
 
 Las fichas creadas automáticamente permanecen pendientes y se muestran como pistas en el Radar. El catálogo público, las alertas y Nova AI usan solo fichas activas con `official: true` o `reviewed: true`. Una respuesta HTTP 200 o un texto que contiene «student» no confirma por sí solo que exista un beneficio. Revisa el beneficio, las condiciones, la vigencia y el enlace de la marca antes de aprobar una ficha.
 
-Si `DATABASE_PATH` apunta a un volumen persistente vacío, el servidor crea las fichas y fuentes iniciales desde `src/data/seed.js`. Los reinicios posteriores leen el volumen sin sobrescribir sus datos. Para importar una copia privada existente una sola vez, configura `SEED_DATABASE_PATH` con la ruta a esa copia fuera del repositorio. El servicio Free actual continúa con almacenamiento temporal hasta que se configure un recurso persistente. Las promociones con fecha de vencimiento dejan de publicarse automáticamente; sus condiciones vigentes se confirman en la fuente oficial.
+Si `DATABASE_PATH` apunta a un volumen persistente vacío, el servidor crea las fichas y fuentes iniciales desde `src/data/seed.js`. Los reinicios posteriores leen el volumen sin sobrescribir sus datos. Para importar una copia privada existente una sola vez, configura `SEED_DATABASE_PATH` con la ruta a esa copia fuera del repositorio. Sin las variables de Supabase, Render Free usa almacenamiento temporal; con Supabase configurado conserva la instantánea remota. Las promociones con fecha de vencimiento dejan de publicarse automáticamente; sus condiciones vigentes se confirman en la fuente oficial.
 
 ```bash
 npm run scan
@@ -143,9 +161,9 @@ curl -X POST http://localhost:4310/api/admin/test-digest \
 
 Para producción, cambia `http://localhost:4310` en `extension/manifest.json`, `popup.js` y `content.js` por tu dominio HTTPS.
 
-## Antes de convertirlo en SaaS público
+## Evolución por fases
 
-La arquitectura está preparada para evolucionar, pero una versión multiusuario pública debe sustituir el JSON local por PostgreSQL/Supabase, añadir autenticación, gestión de consentimiento/bajas de email, colas de trabajo, rate limiting, snapshots históricos, observabilidad, moderación/verificación editorial y reglas por dominio para respetar robots.txt y términos de uso.
+El orden es: auditoría (0), tablas normalizadas (1), vigencia con evidencia (2), motor Actions (3), catálogo estático/SEO (4), búsqueda (5), Auth y sincronización (6), consentimiento y correo (7), admin por rol (8) y elegibilidad/ahorro/calendario (9). Consulta [AUDIT.md](docs/AUDIT.md) para los riesgos actuales. Toda migración necesita importación idempotente, pruebas y rollback antes del corte; hasta entonces rige la restricción de un único escritor de `nova_state`.
 
 ## Reglas de calidad de datos
 

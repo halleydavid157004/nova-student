@@ -1,23 +1,32 @@
-NOVA STUDENT RADAR — INICIO RAPIDO EN WINDOWS
+NOVA STUDENT RADAR - INICIO EN WINDOWS
 
-1. Instala Node.js 20 LTS o superior si aun no lo tienes.
-2. Haz doble clic en INICIAR_NOVA_STUDENT.bat
-3. Tu navegador abrira http://localhost:4310
+1. Descomprime completamente el proyecto.
+2. Instala Node.js 24 LTS desde https://nodejs.org/ si no lo tienes.
+   El codigo conserva compatibilidad con Node 20, que ya esta fuera de soporte.
+3. Abre ABRIR_NOVA_STUDENT.cmd: es el unico lanzador.
+4. El navegador abre http://127.0.0.1:4310 (o el PORT configurado).
 
-La plataforma funciona sin npm install y sin dependencias externas.
+El lanzador crea .env desde .env.example y detecta una instancia sana.
+El servidor usa modulos incluidos en Node; arrancar no necesita npm install.
+Si falla, abre Nova Student Radar Server para leer el error o ejecuta:
+  ABRIR_NOVA_STUDENT.cmd --diagnostico
+No se crea un archivo server.log automaticamente.
 
-PARA EMAIL:
-- Copia .env.example a .env (el iniciador lo hace automaticamente).
-- Opcion recomendada: configura RESEND_API_KEY.
-- Con Gmail: activa verificacion en 2 pasos, crea una contraseña de aplicacion y coloca SMTP_USER y SMTP_PASS en .env.
+CONFIGURACION (secretos solo en .env o variables del servidor):
+- Nova AI: GROQ_API_KEY. El modelo y alternativas se configuran en .env.
+- Radar: BRAVE_SEARCH_API_KEY; maximo 600 solicitudes/mes para esta app.
+- Persistencia: SUPABASE_URL + SUPABASE_SECRET_KEY solo en el servidor.
+  La arquitectura actual requiere UN SOLO escritor; no lances otro scanner.
+- Correo en Render Free: Resend HTTPS con dominio ya verificado.
+  SMTP de Gmail solo es alternativa local; Render Free bloquea esos puertos.
+- ADMIN_TOKEN debe ser secreto y distinto del valor de ejemplo.
 
-PARA BUSQUEDA AUTOMATICA DE FUENTES NUEVAS EN TODO EL MUNDO:
-- Configura BRAVE_SEARCH_API_KEY en .env.
-- Sin esa clave, Nova Student sigue revisando las fuentes oficiales incluidas.
+TESTS:
+  npm ci
+  npm test
+La suite usa proveedores simulados. Guardar una alerta no prueba entrega.
+La extension actual usa localhost: revisa README antes de instalarla.
 
-EXTENSION:
-- Chrome/Edge > Extensiones > Modo desarrollador > Cargar descomprimida > selecciona la carpeta extension.
-
-IMPORTANTE:
-- Cambia ADMIN_TOKEN antes de desplegar en Internet.
-- Para una version publica multiusuario conviene migrar la persistencia local a PostgreSQL/Supabase y añadir autenticacion.
+Nunca subas .env, correos de suscriptores ni copias privadas a GitHub.
+Consulta README.md, docs/AUDIT.md y docs/FREE_TIER_LIMITS.md para limites,
+riesgos pendientes y la evolucion por fases. El propietario despliega Render.
