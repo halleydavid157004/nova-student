@@ -109,5 +109,16 @@ export function createNormalizedStorage(rpc) {
       else baseline.alerts[index] = structuredClone(row);
       return row;
     },
+    validationContext(offerId) { return rpc('nova_validation_context',{offer_id:offerId}); },
+    configureValidation(days) { return rpc('nova_configure_validation',{days}); },
+    async recordCheck(input) {
+      const result=await rpc('nova_record_check',{input});
+      if(!Number.isSafeInteger(result?.offer?.id))throw new Error('Invalid validation storage response');
+      const index=baseline.offers.findIndex(row=>row.id===result.offer.id);
+      if(index<0)throw new Error('Validation offer is not loaded');
+      baseline.offers[index]=structuredClone(result.offer);
+      return result.offer;
+    },
+    submitReport(offerId,reporter,reason) {return rpc('nova_submit_report',{offer_id:offerId,reporter,report_reason:reason});},
   };
 }

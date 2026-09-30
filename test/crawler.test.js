@@ -18,7 +18,7 @@ test('first and subsequent scan batches use valid source objects',async()=>{
   };
   try {
     for(let i=0;i<2;i++){
-      const result=await scanAll();
+      const result=await scanAll({client:{fetch:async url=>{const response=await globalThis.fetch(url);return {status:response.status,body:await response.text(),url,redirects:[]}}}});
       assert.equal(result.length,1);
       assert.equal(result[0].id,1);
       assert.equal(result[0].error,undefined);

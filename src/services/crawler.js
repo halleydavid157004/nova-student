@@ -12,11 +12,13 @@
  */
 
 import crypto from 'node:crypto';
-import { db, save, saveSoon, flushSave, id } from '../db.js';
-import { extractOfferWithAI, aiEnabled, discoverWithGroq } from './groq.js';
+import { db, save, saveSoon, flushSave, id, validationContext, recordCheck } from '../db.js';
+import { extractOfferWithAI, aiEnabled, discoverWithGroq, extractLiveness } from './groq.js';
 import {braveSearch, braveState, braveStatus, radarWindow} from './brave.js';
 
-const ua = 'Mozilla/5.0 (compatible; NovaStudentRadar/2.0; +https://github.com/nova-student-radar)';
+import {sourceClient,SOURCE_UA} from './source-http.js';
+import {validateOffer,relevantSection} from './liveness.js';
+const ua = SOURCE_UA;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const hash = s => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -175,94 +177,34 @@ export function extractOfferFromText(text, url, sourceName = '') {
 /* ═══════════════════════════════════════════
    ROBOTS.TXT CHECK
    ═══════════════════════════════════════════ */
-async function robotsAllows(targetUrl) {
-  try {
-    const u = new URL(targetUrl);
-    const rr = await fetch(`${u.protocol}//${u.host}/robots.txt`, {
-      headers: { 'user-agent': ua },
-      signal: AbortSignal.timeout(7000)
-    });
-    if (!rr.ok) return true;
-    const txt = await rr.text();
-    const lines = txt.split(/\r?\n/);
-    let applies = false;
-    const rules = [];
-    for (const raw of lines) {
-      const line = raw.split('#')[0].trim();
-      if (!line) continue;
-      const [k, ...rest] = line.split(':');
-      const v = rest.join(':').trim();
-      if (k.toLowerCase() === 'user-agent')
-        applies = (v === '*' || v.toLowerCase().includes('novastudentradar'));
-      else if (applies && k.toLowerCase() === 'disallow' && v)
-        rules.push(v);
-    }
-    return !rules.some(rule => u.pathname.startsWith(rule));
-  } catch { return true; }
-}
-
 /* ═══════════════════════════════════════════
    SOURCE SCANNER — checks for changes
    ═══════════════════════════════════════════ */
-export async function scanSource(source) {
+export async function scanSource(source,{client=sourceClient,headless,extract=aiEnabled()?extractLiveness:null,aiAdmission=()=>true}={}) {
   const now = new Date().toISOString();
   try {
-    if (!(await robotsAllows(source.url))) {
-      source.last_checked_at = now;
-      source.last_error = 'Blocked by robots.txt';
-      source.last_status = null;
-      saveSoon();
-      return { id: source.id, name: source.name, skipped: true, reason: 'robots.txt' };
+    if(source.terms_blocked===true)return {id:source.id,name:source.name,skipped:true,reason:'source_terms'};
+    if(source.next_retry_at && Date.parse(source.next_retry_at)>Date.now())return {id:source.id,name:source.name,skipped:true,reason:'backoff'};
+    let r;
+    try{r=await client.fetch(source.url)}catch(error){r={status:0,body:'',url:source.url,networkError:error.message};}
+    const text=textFromHtml(r.body||'');
+    const section=relevantSection(r.body||'');
+    const h=section.hash;
+    const changed=!!source.last_hash&&source.last_hash!==h;
+    Object.assign(source,{last_checked_at:now,last_hash:h,last_status:r.status||null,
+      last_error:r.blocked?`Blocked by ${r.blocked}`:r.status>=400?`HTTP ${r.status}`:r.networkError||null});
+    if(r.blocked||[0,403,429,500,502,503,504].includes(r.status)){
+      source.failure_count=(source.failure_count||0)+1;
+      source.next_retry_at=new Date(Date.now()+Math.min(24*3600000,3600000*2**Math.min(source.failure_count,5))).toISOString();
+    }else{source.failure_count=0;source.next_retry_at=null;}
+    for(const offer of db.offers.filter(o=>o.source_url===source.url)){
+      const context=await validationContext(offer);
+      const current={...context.offer,approved_extraction:context.approved_extraction};
+      const check=await validateOffer(current,r,{extract,headless,reports:context.report_weight});
+      await recordCheck(context.offer,check);
+      Object.assign(offer,context.offer);
     }
-
-    const r = await fetch(source.url, {
-      headers: { 'user-agent': ua, 'accept-language': 'en-US,en;q=0.8,es;q=0.6' },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(FETCH_TIMEOUT),
-    });
-
-    source.last_status = r.status;
-    if (!r.ok && r.status !== 404 && r.status !== 410) throw new Error(`HTTP ${r.status}`);
-    const html = r.ok ? await r.text() : '';
-    const text = textFromHtml(html);
-    const h = hash(text);
-    const changed = !!source.last_hash && source.last_hash !== h;
-
-    Object.assign(source, {
-      last_checked_at: now,
-      last_hash: h,
-      last_status: r.status,
-      last_error: null,
-    });
-
-    // Update existing offers tied to this source
-    for (const o of db.offers.filter(x => x.source_url === source.url)) {
-      if (r.status === 404 || r.status === 410) {
-        // Expired or Not Found -> auto-disable
-        o.status = 'inactive';
-      } else if (r.ok && o.status !== 'pending') {
-        o.status = 'active'; // Recovered
-      }
-      
-      if (r.ok) {
-        o.source_hash = h;
-        o.source_excerpt = excerpt(text);
-        o.verified_at = now;
-        if (changed) o.updated_at = now;
-      }
-    }
-
-    // If page changed, log event
-    if (changed) {
-      db.events.push({
-        id: id('events'),
-        type: 'source_changed',
-        source_id: source.id,
-        title: `${source.name} cambió su contenido`,
-        details: { url: source.url, status: r.status },
-        created_at: now,
-      });
-    }
+    r.ok=r.status>=200&&r.status<300&&!r.blocked;
 
     // Try to auto-extract new offer if source has no linked offer
     const hasOffer = db.offers.some(o => o.source_url === source.url);
@@ -271,7 +213,7 @@ export async function scanSource(source) {
       let extracted = extractOfferFromText(text, source.url, source.name);
 
       // If regex failed but text looks promising, try AI extraction
-      if (!extracted && aiEnabled() && text.length > 500) {
+      if (!extracted && aiEnabled() && text.length > 500 && aiAdmission()) {
         const low = text.toLowerCase();
         const hasStudentKeywords = ['student', 'education', '.edu', 'university'].some(k => low.includes(k));
         const hasOfferKeywords = ['free', 'discount', 'gratis', 'credits'].some(k => low.includes(k));
@@ -317,7 +259,7 @@ export async function scanSource(source) {
             ...extracted,
             status: 'pending',
             discovered_at: now,
-            verified_at: now,
+            verified_at: null,
             updated_at: now,
             source_hash: h,
             source_excerpt: excerpt(text),
@@ -336,7 +278,7 @@ export async function scanSource(source) {
     }
 
     saveSoon();
-    return { id: source.id, name: source.name, status: r.status, changed, chars: text.length };
+    return { id: source.id, name: source.name, status: r.status, changed, chars: text.length, ...(r.blocked?{skipped:true,reason:r.blocked}:{}), ...(!r.ok&&!r.blocked?{error:source.last_error||'source_unavailable'}:{}) };
 
   } catch (e) {
     source.last_checked_at = now;
@@ -346,8 +288,17 @@ export async function scanSource(source) {
   }
 }
 
-export async function scanAll() {
+export async function scanAll(options={}) {
   const out = [];
+  const configured=Number(process.env.LIVENESS_AI_CALLS_PER_CYCLE??12);
+  let aiRemaining=Number.isInteger(configured)?Math.max(0,Math.min(25,configured)):12;
+  const aiAdmission=()=>{if(aiRemaining<=0)return false;aiRemaining--;return true;};
+  const extraction=options.extract || (aiEnabled()?extractLiveness:null);
+  const extract=extraction?async(...args)=>{
+    if(!aiAdmission())throw Object.assign(new Error('Validation AI budget exhausted'),{code:'AI_BUSY'});
+    return extraction(...args);
+  }:null;
+  options={...options,extract,aiAdmission};
   const sources = db.sources.filter(x => x.enabled);
   const batchSize = Math.max(1, Math.min(250, Number(process.env.SCAN_BATCH_SIZE)||100));
   db.runtime ||= {};
@@ -360,7 +311,7 @@ export async function scanAll() {
   console.log(`[Scan] Checking ${batch.length} of ${sources.length} sources…`);
   try {
     for (let i=0;i<batch.length;i+=4) {
-      out.push(...await Promise.all(batch.slice(i,i+4).map(scanSource)));
+      out.push(...await Promise.all(batch.slice(i,i+4).map(source=>scanSource(source,options))));
       if(i+4<batch.length) await sleep(CONCURRENCY_DELAY);
     }
   } finally {
@@ -585,15 +536,11 @@ async function runBraveDiscovery() {
    DISCOVER: GitHub Education Partners Page
    Scrapes the partners list for new sources
    ═══════════════════════════════════════════ */
-export async function discoverGitHubPartners() {
+export async function discoverGitHubPartners({client=sourceClient}={}) {
   try {
-    const r = await fetch('https://education.github.com/pack/partners', {
-      headers: { 'user-agent': ua, 'accept-language': 'en-US,en;q=0.8' },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT),
-    });
-    if (!r.ok) return { discovered: 0, error: `HTTP ${r.status}` };
-
-    const html = await r.text();
+    const r = await client.fetch('https://education.github.com/pack/partners');
+    if (r.blocked || r.status !== 200) return { discovered: 0, error: r.blocked || `HTTP ${r.status}` };
+    const html = r.body;
     // Extract partner URLs from the page
     const urlMatches = html.matchAll(/href=["'](https?:\/\/[^"']+)["']/gi);
     let added = 0;
@@ -640,7 +587,7 @@ export async function discoverGitHubPartners() {
 /* ═══════════════════════════════════════════
    MASTER DISCOVERY — Runs all discovery engines
    ═══════════════════════════════════════════ */
-export async function discoverAll() {
+export async function discoverAll(options={}) {
   console.log(`[Discovery] Starting full discovery cycle…`);
   const start = Date.now();
 
@@ -682,7 +629,7 @@ export async function discoverAll() {
     console.log(`[Discovery] Groq AI Fallback found ${added} new sources.`);
   }
 
-  const github = await discoverGitHubPartners();
+  const github = await discoverGitHubPartners(options);
 
   const totalDiscovered = (studentOffers.discovered || 0) + (brave.discovered || 0) + (groqFallback.discovered || 0) + (github.discovered || 0);
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import {createNormalizedStorage} from './storage/normalized.js';
 
 const dbPath = process.env.DATABASE_PATH || './storage/nova-student.json';
@@ -165,6 +166,26 @@ export async function persistAlertRow(alert){
     return row;
   }catch(error){lastPersistError=error.message;throw error;}
   finally{nativeWrites--;nativeRevision++;}
+}
+
+export async function configureValidation(days){if(normalizedStorage)await normalizedStorage.configureValidation(days);}
+export async function validationContext(offer){
+  return normalizedStorage ? normalizedStorage.validationContext(offer.id) : {offer,approved_extraction:offer.approved_extraction||null,report_weight:0};
+}
+export async function recordCheck(offer,check){
+  if(!normalizedStorage){Object.assign(offer,check.patch);db.checks||=[];db.checks.push({offer_id:offer.id,...check});save();return;}
+  nativeWrites++;nativeRevision++;
+  try{
+    const keys=['status','title','benefit','source_url','consecutive_failures','liveness_status','liveness_verified_at'];
+    const expected=Object.fromEntries(keys.map(k=>[k,offer[k]??null]));
+    const row=await normalizedStorage.recordCheck({key:crypto.randomUUID(),offer_id:offer.id,expected,check});
+    Object.assign(offer,row);
+  }catch(error){lastPersistError=error.message;throw error;}
+  finally{nativeWrites--;nativeRevision++;}
+}
+export async function submitReport(offerId,reporter,reason){
+  if(normalizedStorage)return normalizedStorage.submitReport(offerId,reporter,reason);
+  return {unavailable:true};
 }
 
 for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{

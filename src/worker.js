@@ -14,16 +14,16 @@ function workerState() {
 }
 
 // Automatic jobs and the authenticated manual endpoint share one task.
-export function runDiscoveryAndScan({force = false} = {}) {
+export function runDiscoveryAndScan({force = false,sourceOptions} = {}) {
   if (scanTask) return scanTask;
   const state = workerState();
   if (!force && Number.isSafeInteger(state.lastWindow) && state.lastWindow >= radarWindow())
     return Promise.resolve({skipped: 'not_due', discovery: {}, scan: []});
-  scanTask = performCycle().finally(() => { scanTask = null; });
+  scanTask = performCycle(sourceOptions).finally(() => { scanTask = null; });
   return scanTask;
 }
 
-async function performCycle() {
+async function performCycle(sourceOptions) {
   const state = workerState();
   const startedAt = Date.now();
   state.lastWindow = radarWindow(startedAt);
@@ -34,8 +34,8 @@ async function performCycle() {
     save();
     await flushSave();
     console.log(`[Worker] Six-hour radar cycle #${state.scanCount} started.`);
-    const discovery = await discoverAll();
-    const scan = await scanAll();
+    const discovery = await discoverAll(sourceOptions);
+    const scan = await scanAll(sourceOptions);
     state.lastCompletedAt = new Date().toISOString();
     state.lastScanResult = {
       cycle: state.scanCount, timestamp: state.lastCompletedAt,

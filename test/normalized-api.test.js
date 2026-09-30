@@ -8,6 +8,7 @@ test('HTTP API boots from normalized RPCs, preserves public gating and saves ale
     import {readFileSync} from 'node:fs';
     import {createServer} from 'node:net';
     const fixture=JSON.parse(readFileSync('test/fixtures/legacy-state.json','utf8'));
+    for(const offer of fixture.offers)offer.verified_at=new Date().toISOString();
     let remote=structuredClone(fixture);
     const requests=[];
     const nativeFetch=globalThis.fetch;
@@ -21,6 +22,8 @@ test('HTTP API boots from normalized RPCs, preserves public gating and saves ale
       const args=JSON.parse(options.body||'{}');
       if(name==='nova_activate_rows'||name==='nova_load_rows')return Response.json(remote);
       if(name==='nova_reserve_ids')return Response.json(Object.fromEntries(['offers','sources','events','alerts'].map(k=>[k,{next:1000,last:1999}])));
+      if(name==='nova_configure_validation')return Response.json(null);
+      if(name==='nova_submit_report')return Response.json({ok:true});
       if(name==='nova_create_alert'){
         remote.alerts.push(args.input);
         return Response.json(args.input);
@@ -37,7 +40,7 @@ test('HTTP API boots from normalized RPCs, preserves public gating and saves ale
       try{health=await (await fetch(base+'/api/health')).json();if(health.ok)break}catch{}
       await new Promise(r=>setTimeout(r,20));
     }
-    assert.equal(health.storage.schema,'normalized');assert.equal(health.storage.synced,true);
+    assert.equal(health.version,'2.3.0');assert.equal(health.storage.schema,'normalized');assert.equal(health.storage.synced,true);
     const offers=await (await fetch(base+'/api/offers')).json();
     assert.deepEqual(offers.offers.map(o=>o.id).sort(),[12,14]);
     assert.equal((await fetch(base+'/api/offers/13')).status,404);
@@ -47,6 +50,9 @@ test('HTTP API boots from normalized RPCs, preserves public gating and saves ale
     assert.ok(remote.alerts.some(a=>a.email==='api-fixture@example.invalid'));
     assert.ok(requests.includes('nova_create_alert'));
     assert.ok(!requests.includes('nova_apply_changes'),'alert creation leaves catalog rows untouched');
+    const report=await fetch(base+'/api/offers/12/reports',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({reason:'broken'})});
+    assert.equal(report.status,200);assert.ok(requests.includes('nova_submit_report'));
+    assert.equal((await fetch(base+'/api/offers/12/reports',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({reason:'<script>'})})).status,400);
     process.kill(process.pid,'SIGTERM');
   `;
   const result=spawnSync(process.execPath,['--input-type=module','-e',program],{
