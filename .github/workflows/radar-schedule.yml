@@ -1,0 +1,58 @@
+name: Radar cada 6 horas
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/radar-schedule.yml']
+
+permissions: {}
+concurrency:
+  group: radar-six-hour
+  cancel-in-progress: false
+
+jobs:
+  scheduled-discovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Ejecutar y verificar el radar programado
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, time, urllib.request, urllib.error
+          base = 'https://nova-student-radar.onrender.com'
+          deadline = time.monotonic() + 180
+          def read(path):
+              req = urllib.request.Request(base + path, headers={'User-Agent': 'NovaStudentScheduledRadar/1.0'})
+              with urllib.request.urlopen(req, timeout=25) as response:
+                  return json.load(response)
+          while time.monotonic() < deadline:
+              try:
+                  health = read('/api/health')
+                  if not health.get('ok') or not health.get('storage', {}).get('ready') or health.get('storage', {}).get('error'):
+                      raise ValueError('El almacenamiento aún no está listo')
+                  if health.get('storage', {}).get('provider') != 'supabase':
+                      raise SystemExit('Conecta Supabase para conservar el horario y el presupuesto entre reinicios.')
+                  worker = read('/api/worker-status').get('worker', {})
+                  brave = worker.get('brave', {})
+                  if brave and (not worker.get('enabled') or not brave.get('enabled')):
+                      raise SystemExit('Activa el worker y BRAVE_SEARCH_API_KEY en el servidor.')
+                  if brave.get('budget', {}).get('remaining') == 0:
+                      print('Radar protegido: se alcanzó el límite mensual de Brave. Sin nuevas consultas.')
+                      break
+                  run = brave.get('lastRun') or {}
+                  expected_window = int((time.time() - 17 * 60) // (6 * 3600))
+                  if not brave.get('running') and run.get('window') == expected_window:
+                      if run.get('error'):
+                          raise SystemExit('Brave terminó con un error: ' + str(run['error']))
+                      print('Ciclo confirmado:', run.get('queriesUsed', 0), 'consultas y', run.get('discovered', 0), 'pistas nuevas.')
+                      break
+              except (urllib.error.URLError, TimeoutError, ValueError):
+                  pass  # Render Free can take about a minute to start.
+              time.sleep(10)
+          else:
+              raise SystemExit('No se pudo confirmar Brave. Revisa el último despliegue y /api/worker-status.')
+          PY

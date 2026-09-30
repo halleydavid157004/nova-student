@@ -14,6 +14,7 @@
 import crypto from 'node:crypto';
 import { db, save, saveSoon, flushSave, id } from '../db.js';
 import { extractOfferWithAI, aiEnabled, discoverWithGroq } from './groq.js';
+import {braveSearch, braveState, braveStatus, radarWindow} from './brave.js';
 
 const ua = 'Mozilla/5.0 (compatible; NovaStudentRadar/2.0; +https://github.com/nova-student-radar)';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -209,6 +210,7 @@ export async function scanSource(source) {
     if (!(await robotsAllows(source.url))) {
       source.last_checked_at = now;
       source.last_error = 'Blocked by robots.txt';
+      source.last_status = null;
       saveSoon();
       return { id: source.id, name: source.name, skipped: true, reason: 'robots.txt' };
     }
@@ -219,6 +221,7 @@ export async function scanSource(source) {
       signal: AbortSignal.timeout(FETCH_TIMEOUT),
     });
 
+    source.last_status = r.status;
     if (!r.ok && r.status !== 404 && r.status !== 410) throw new Error(`HTTP ${r.status}`);
     const html = r.ok ? await r.text() : '';
     const text = textFromHtml(html);
@@ -279,20 +282,11 @@ export async function scanSource(source) {
             // If AI requested a real-time search to find the official URL
             if (aiResult && aiResult.needs_search) {
               try {
-                const key = process.env.BRAVE_SEARCH_API_KEY;
-                if (key) {
-                  const u = new URL('https://api.search.brave.com/res/v1/web/search');
-                  u.searchParams.set('q', aiResult.needs_search);
-                  u.searchParams.set('count', '1');
-                  const sr = await fetch(u, { headers: { 'X-Subscription-Token': key, Accept: 'application/json' }});
-                  if (sr.ok) {
-                    const sj = await sr.json();
-                    if (sj.web?.results?.[0]?.url) {
-                      aiResult.source_url = sj.web.results[0].url;
+                const search = await braveSearch(aiResult.needs_search, {count: 1});
+                if (!search.error && !search.skipped && search.results[0]?.url) {
+                      aiResult.source_url = search.results[0].url;
                       aiResult.source_domain = new URL(aiResult.source_url).hostname.replace(/^www\./, '');
-                      console.log(`[Nova AI] 🔍 Live Search found official URL: ${aiResult.source_url}`);
-                    } else { aiResult = null; } // Discard if no real result
-                  } else { aiResult = null; }
+                      console.log(`[Nova AI] Live Search found a candidate URL: ${aiResult.source_url}`);
                 } else { aiResult = null; }
               } catch(e) { aiResult = null; }
             }
@@ -356,10 +350,13 @@ export async function scanAll() {
   const out = [];
   const sources = db.sources.filter(x => x.enabled);
   const batchSize = Math.max(1, Math.min(250, Number(process.env.SCAN_BATCH_SIZE)||100));
-  const cursor = Number.isSafeInteger(scanAll.cursor) ? scanAll.cursor : 0;
+  db.runtime ||= {};
+  const cursor = Number.isSafeInteger(db.runtime.scanCursor) ? db.runtime.scanCursor : 0;
   const start = cursor % Math.max(1,sources.length);
   const batch = Array.from({length: Math.min(batchSize,sources.length)},(_,i)=>sources[(start+i)%sources.length]);
-  scanAll.cursor = start + batch.length;
+  db.runtime.scanCursor = start + batch.length;
+  save();
+  await flushSave();
   console.log(`[Scan] Checking ${batch.length} of ${sources.length} sources…`);
   try {
     for (let i=0;i<batch.length;i+=4) {
@@ -451,7 +448,9 @@ export async function discoverStudentOffers() {
    Much more aggressive query set focused on trending topics
    ═══════════════════════════════════════════ */
 const BRAVE_QUERIES = [
-  // General
+  // General and Latin America
+  'beneficios estudiantes Colombia software gratis correo institucional',
+  'descuentos universitarios Latinoamerica programas educativos',
   'student discount free software 2026',
   'best student deals education university',
   'student developer pack tools free',
@@ -498,90 +497,88 @@ const BRAVE_QUERIES = [
   'student travel discount flights isic',
 ];
 
-export async function discoverWithBrave() {
-  const key = process.env.BRAVE_SEARCH_API_KEY;
-  if (!key) return { enabled: false, reason: 'BRAVE_SEARCH_API_KEY not configured', discovered: 0 };
+let braveCycleTask;
+export function getBraveDiscoveryStatus() {
+  return {...braveStatus(), running: Boolean(braveCycleTask)};
+}
 
-  let added = 0;
-  let queriesUsed = 0;
+export function discoverWithBrave() {
+  if (braveCycleTask) return braveCycleTask;
+  braveCycleTask = runBraveDiscovery().finally(() => { braveCycleTask = null; });
+  return braveCycleTask;
+}
 
-  // Pick a subset of queries each run (rotate through them)
-  const now = new Date();
-  const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
-  const queriesPerRun = 8;
-  const startIdx = (dayOfYear * queriesPerRun) % BRAVE_QUERIES.length;
-  const selectedQueries = [];
-  for (let i = 0; i < queriesPerRun; i++) {
-    selectedQueries.push(BRAVE_QUERIES[(startIdx + i) % BRAVE_QUERIES.length]);
+async function runBraveDiscovery() {
+  const status = braveStatus();
+  if (!status.enabled) return {enabled: false, discovered: 0, skipped: 'not_configured'};
+  const state = braveState();
+  const window = radarWindow();
+  if (Number.isSafeInteger(state.lastWindow) && state.lastWindow >= window)
+    return {enabled: true, discovered: 0, skipped: 'not_due'};
+
+  const selectedCount = Math.min(4, status.budget.remaining);
+  if (!selectedCount) return {enabled: true, discovered: 0, skipped: 'monthly_limit'};
+  state.lastWindow = window;
+  state.lastRunAt = new Date().toISOString();
+  const cursor = Math.max(0, Number(state.queryCursor) || 0) % BRAVE_QUERIES.length;
+  const queries = Array.from({length: selectedCount}, (_, i) =>
+    BRAVE_QUERIES[(cursor + i) % BRAVE_QUERIES.length].replace(/2026/g, String(new Date().getUTCFullYear())));
+  state.queryCursor = (cursor + selectedCount) % BRAVE_QUERIES.length;
+  save();
+  await flushSave();
+
+  let discovered = 0, queriesUsed = 0, attempted = 0, errors = 0, lastError = null;
+  let skipped = null;
+  for (const query of queries) {
+    const response = await braveSearch(query);
+    attempted += Number(Boolean(response.attempted));
+    if (response.error || response.skipped) {
+      errors += Number(Boolean(response.error));
+      lastError = response.error || lastError;
+      skipped = response.skipped || null;
+      if (response.skipped || ['authentication', 'quota', 'rate_limited', 'storage'].includes(response.error)) break;
+      continue;
+    }
+    queriesUsed++;
+    for (const item of response.results) {
+      try {
+        const parsed = new URL(item.url);
+        if (parsed.protocol !== 'https:' || parsed.username || parsed.password) continue;
+        const domain = parsed.hostname.replace(/^www\./, '');
+        if (domain === 'localhost' || !domain.includes('.') || /^[\d.]+$/.test(domain) || domain.startsWith('[')) continue;
+        parsed.hash = '';
+        const url = parsed.href;
+        const title = String(item.title || domain);
+        const combined = title + ' ' + String(item.description || '');
+        if (!/(student|education|academic|university|college|\.edu|estudiant)/i.test(combined)) continue;
+        if (db.sources.some(source => source.url === url || source.domain === domain)) continue;
+        const aggregators = ['reddit.com', 'twitter.com', 'facebook.com', 'wikipedia.org', 'quora.com', 'medium.com', 'forbes.com'];
+        if (aggregators.some(host => domain === host || domain.endsWith('.' + host))) continue;
+        if (/\/(blog|articles?|news|reviews?)\//i.test(parsed.pathname)) continue;
+        const source = {
+          id: id('sources'), name: title.slice(0, 180), url, domain,
+          category: guessCategory(combined), countries: guessCountries(combined),
+          enabled: true, official: false,
+          last_checked_at: null, last_hash: null, last_status: null, last_error: null,
+          discovered_via: 'Brave Search',
+        };
+        db.sources.push(source);
+        db.events.push({id: id('events'), type: 'source_discovered', source_id: source.id,
+          title: 'Nueva pista: ' + source.name.slice(0, 80), details: {url, via: 'Brave Search'},
+          created_at: new Date().toISOString()});
+        discovered++;
+      } catch { /* Ignore malformed results; never publish search leads directly. */ }
+    }
+    save();
   }
-
-  console.log(`[Brave] Running ${selectedQueries.length} discovery queries…`);
-
-  for (const q of selectedQueries) {
-    const u = new URL('https://api.search.brave.com/res/v1/web/search');
-    u.searchParams.set('q', q);
-    u.searchParams.set('count', '20');
-    u.searchParams.set('freshness', 'pm');  // past month
-
-    try {
-      const r = await fetch(u, {
-        headers: { 'X-Subscription-Token': key, Accept: 'application/json' },
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!r.ok) continue;
-
-      const j = await r.json();
-      queriesUsed++;
-
-      for (const item of (j.web?.results || [])) {
-        try {
-          const url = item.url;
-          const dom = new URL(url).hostname.replace(/^www\./, '');
-          const title = item.title || dom;
-          const desc = item.description || '';
-          const combined = title + ' ' + desc;
-
-          // Must be student-related
-          if (!/(student|education|academic|university|college|\.edu|estudiant)/i.test(combined)) continue;
-          // Skip if already known
-          if (db.sources.some(x => x.url === url || x.domain === dom)) continue;
-          // Skip aggregator/news sites (we want direct sources)
-          if (/(reddit\.com|twitter\.com|facebook\.com|wikipedia\.org|quora\.com|medium\.com|forbes\.com)/i.test(dom)) continue;
-          // Skip if URL explicitly says it's a blog, article, or listicle
-          if (/(blog|article|news|top-|best-|deals-|review)/i.test(url)) continue;
-
-          const category = guessCategory(combined);
-          const s = {
-            id: id('sources'),
-            name: title.slice(0, 180),
-            url, domain: dom, category,
-            countries: guessCountries(combined),
-            enabled: true, official: false,
-            last_checked_at: null, last_hash: null, last_status: null, last_error: null,
-            discovered_via: `Brave Search: "${q}"`,
-          };
-
-          db.sources.push(s);
-          db.events.push({
-            id: id('events'),
-            type: 'source_discovered',
-            source_id: s.id,
-            title: `Nueva fuente: ${title.slice(0, 80)}`,
-            details: { url, query: q },
-            created_at: new Date().toISOString(),
-          });
-          added++;
-        } catch { /* skip invalid URLs */ }
-      }
-
-      save();
-    } catch { /* skip failed queries */ }
-
-    await sleep(400);
-  }
-
-  console.log(`[Brave] Discovered ${added} new sources from ${queriesUsed} queries.`);
-  return { enabled: true, discovered: added, queriesUsed };
+  const result = {enabled: true, discovered, queriesUsed, attempted, errors,
+    error: lastError, skipped, window};
+  state.lastCompletedAt = new Date().toISOString();
+  state.lastRun = result;
+  save();
+  await flushSave();
+  console.log(`[Brave] Six-hour cycle: ${queriesUsed}/${attempted} successful queries; ${discovered} new leads; ${errors} errors.`);
+  return result;
 }
 
 /* ═══════════════════════════════════════════
@@ -654,9 +651,9 @@ export async function discoverAll() {
   await sleep(500);
 
   let groqFallback = { discovered: 0 };
-  // Fallback if Brave failed or found nothing (e.g. out of quota)
-  if ((!brave.enabled || brave.discovered === 0 || brave.error) && aiEnabled()) {
-    console.log(`[Discovery] Brave quota exhausted or failed. Activating Groq AI Fallback Discovery…`);
+  // A successful search with no new URLs is not a provider failure.
+  if ((!brave.enabled || brave.error) && aiEnabled()) {
+    console.log(`[Discovery] Brave unavailable. Activating Groq AI Fallback Discovery…`);
     const topics = ['software developers', 'cloud platforms', 'design tools', 'streaming services', 'ai services'];
     const randomTopic = topics[Math.floor(Math.random() * topics.length)];
     const urls = await discoverWithGroq(randomTopic);

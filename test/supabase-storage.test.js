@@ -76,6 +76,32 @@ test('failed remote writes remain unsynced and can be retried without losing dat
   assert.equal(result.status,0,result.stderr);
 });
 
+test('Brave cannot send a paid request until its budget reservation is durable',()=>{
+  const program=`
+    import assert from 'node:assert/strict';
+    let offline=true, providerCalls=0;
+    globalThis.fetch=async(url,options={})=>{
+      if(String(url).includes('api.search.brave.com')){providerCalls++;return Response.json({web:{results:[]}})}
+      if(!options.method)return Response.json([]);
+      return new Response(null,{status:offline?503:201});
+    };
+    const storage=await import('./src/db.js');await storage.migrate();
+    const {braveSearch,braveStatus}=await import('./src/services/brave.js');
+    assert.equal((await braveSearch('student offers')).error,'storage');
+    assert.equal(providerCalls,0);
+    assert.equal(braveStatus().budget.used,1);
+    offline=false;await storage.flushSave();
+    await braveSearch('student offers');
+    assert.equal(providerCalls,1);
+    assert.equal(braveStatus().budget.used,2);
+    assert.equal(storage.storageStatus().synced,true);
+  `;
+  const result=spawnSync(process.execPath,['--input-type=module','-e',program],{
+    cwd:process.cwd(),encoding:'utf8',timeout:10000,env:{...process.env,SUPABASE_URL:'https://sample.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_test',SEED_DATABASE_PATH:'',BRAVE_SEARCH_API_KEY:'test-private-key',BRAVE_MONTHLY_LIMIT:'600'},
+  });
+  assert.equal(result.status,0,result.stderr);
+});
+
 test('shutdown waits for a remote write taking longer than eight seconds',()=>{
   const dir=mkdtempSync(path.join(tmpdir(),'nova-shutdown-'));
   const marker=path.join(dir,'saved');

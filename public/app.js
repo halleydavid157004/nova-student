@@ -572,22 +572,46 @@ async function loadSaved() {
    ============================================ */
 let allSources = [];
 let allEvents = [];
+let radarSources = [];
+let sourceVisibleCount = 80;
+
+function renderRadarSchedule(worker) {
+  const panel = $('#radarSchedule');
+  if (!panel) return;
+  if (!worker?.brave) { panel.innerHTML = '<p>Estado del radar temporalmente no disponible.</p>'; return; }
+  const brave = worker.brave;
+  const labels = {authentication: 'Revisar conexión', quota: 'Cuota alcanzada', rate_limited: 'Pausa temporal',
+    upstream: 'Proveedor no disponible', network: 'Sin respuesta', storage: 'Guardado pendiente', invalid_response: 'Respuesta no válida'};
+  let state = !worker.enabled ? 'Pausado' : !brave.enabled ? 'Sin conectar'
+    : brave.running ? 'Buscando oportunidades' : brave.lastError ? labels[brave.lastError] || 'Revisar conexión'
+    : brave.budget?.remaining === 0 ? 'Límite mensual alcanzado' : 'Programado cada 6 horas';
+  const date = value => value && Number.isFinite(Date.parse(value))
+    ? new Date(value).toLocaleString('es-CO', {dateStyle: 'short', timeStyle: 'short'}) : 'Pendiente';
+  panel.innerHTML = `<div><span class="radar-schedule-label">BRAVE SEARCH</span><strong>${esc(state)}</strong></div>
+    <div><span class="radar-schedule-label">ÚLTIMA BÚSQUEDA</span><strong>${esc(date(brave.lastCompletedAt))}</strong></div>
+    <div><span class="radar-schedule-label">PRÓXIMA VENTANA</span><strong>${esc(date(brave.nextRunAt))}</strong></div>
+    <p>Hasta 4 búsquedas por ciclo. Las pistas nuevas se revisan antes de aparecer en el catálogo.</p>`;
+}
 
 async function loadRadar() {
   try {
-    const [{ sources }, { events }] = await Promise.all([
+    const [{ sources }, { events }, status] = await Promise.all([
       apiFetch('/api/sources?limit=1000'),
-      apiFetch('/api/events')
+      apiFetch('/api/events'),
+      apiFetch('/api/worker-status').catch(() => null)
     ]);
     allSources = sources;
     allEvents = events;
+    renderRadarSchedule(status?.worker);
     renderRadar(sources, events);
   } catch (e) {
     console.error('loadRadar error:', e);
   }
 }
 
-function renderRadar(sources, events) {
+function renderRadar(sources, events, reset = true) {
+  if (reset) sourceVisibleCount = 80;
+  radarSources = sources;
   const radarCount = $('#radarCount');
   if (radarCount) radarCount.textContent = `${sources.length} fuentes`;
 
@@ -595,13 +619,19 @@ function renderRadar(sources, events) {
   const sourceList = $('#sourceList');
   if (sourceList) {
     sourceList.innerHTML = sources.length
-      ? sources.map(s => {
-          const stateClass = s.last_error ? 'err' : s.last_status ? 'ok' : '';
-          const stateLabel = s.last_error ? 'Error' : s.last_status ? `HTTP ${s.last_status}` : 'Pendiente';
+      ? sources.slice(0, sourceVisibleCount).map(s => {
+          const restricted = s.last_error === 'Blocked by robots.txt' || /HTTP (401|403|429)/.test(s.last_error || '');
+          const missing = [404, 410].includes(s.last_status);
+          const stateClass = restricted || missing ? 'warn' : s.last_error ? 'err' : s.last_status ? 'ok' : '';
+          const stateLabel = s.last_error === 'Blocked by robots.txt' ? 'Rastreo no permitido'
+            : /HTTP (401|403)/.test(s.last_error || '') ? 'Acceso restringido'
+            : /HTTP 429/.test(s.last_error || '') ? 'Pausa temporal'
+            : s.last_error ? 'Sin respuesta' : missing ? 'No disponible'
+            : s.last_status ? 'Comprobada' : 'Pendiente';
           return `
             <div class="source-row">
               <div>
-                <strong>${esc(s.name)}</strong>
+                <strong><a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.name)} ↗</a></strong>
                 <small>${esc(s.domain)} · ${s.official ? '✓ Oficial' : 'Descubierta'} · ${esc(s.category)}</small>
                 ${s.last_checked_at ? `<small>Última comprobación: ${new Date(s.last_checked_at).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}</small>` : ''}
               </div>
@@ -610,6 +640,8 @@ function renderRadar(sources, events) {
         }).join('')
       : '<div class="empty-state"><p>Sin fuentes todavía.</p></div>';
   }
+  const more = $('#sourceMore');
+  if (more) more.hidden = sources.length <= sourceVisibleCount;
 
   // Lista de eventos
   const eventList = $('#eventList');
@@ -627,6 +659,17 @@ function renderRadar(sources, events) {
          </div>`;
   }
 }
+
+$('#sourceMore')?.addEventListener('click', () => {
+  sourceVisibleCount += 80;
+  renderRadar(radarSources, allEvents, false);
+});
+$('#radarRefresh')?.addEventListener('click', async () => {
+  const button = $('#radarRefresh');
+  button.disabled = true;
+  try { await loadRadar(); }
+  finally { button.disabled = false; }
+});
 
 $('#loadMore')?.addEventListener('click', () => { visibleCount += 48; render(offers); });
 

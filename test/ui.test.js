@@ -24,7 +24,8 @@ test('interfaz: filtros, detalle, favoritos, radar, alerta e IA',async()=>{
     if(route==='/api/offers/trending')return json({offers:[sample]});
     if(route==='/api/offers/1')return json({offer:sample});
     if(route==='/api/offers')return json({offers:url.searchParams.get('q')==='inexistente'?[]:catalog});
-    if(route==='/api/sources')return json({sources:[{id:1,name:'Notion',domain:'notion.so',category:'Productivity',url:sample.source_url,official:true}]});
+    if(route==='/api/sources')return json({sources:Array.from({length:100},(_,i)=>({id:i+1,name:`Notion ${i+1}`,domain:'notion.so',category:'Productivity',url:sample.source_url,official:true,last_error:i===0?'HTTP 403':null,last_status:i===0?403:i===1?404:200}))});
+    if(route==='/api/worker-status')return json({worker:{enabled:true,brave:{enabled:true,running:false,lastCompletedAt:'2026-09-30T00:17:00Z',nextRunAt:'2026-09-30T06:17:00Z',budget:{remaining:596}}}});
     if(route==='/api/events')return json({events:[]});
     if(route==='/api/alerts')return json({ok:true,id:2});
     if(route==='/api/ai/status')return json({enabled:true,model:'openai/gpt-oss-20b'});
@@ -50,7 +51,15 @@ test('interfaz: filtros, detalle, favoritos, radar, alerta e IA',async()=>{
     $('#nav-saved').click(); await sleep(20);
     assert.ok($('#savedGrid .card'),'saved offer is shown');
     $('#nav-radar').click(); await sleep(20);
-    assert.match($('#radarCount').textContent,/1 fuente/);
+    assert.match($('#radarCount').textContent,/100 fuentes/);
+    assert.match($('#radarSchedule').textContent,/Programado cada 6 horas/);
+    assert.equal(window.document.querySelectorAll('#sourceList .source-row').length,80,'radar starts with a bounded list');
+    assert.match($('#sourceList .source-state').textContent,/Acceso restringido/);
+    assert.equal($('#sourceList .source-state').classList.contains('warn'),true);
+    assert.match(window.document.querySelectorAll('#sourceList .source-state')[1].textContent,/No disponible/);
+    $('#sourceMore').click();
+    assert.equal(window.document.querySelectorAll('#sourceList .source-row').length,100);
+    assert.equal($('#sourceMore').hidden,true);
     $('#nav-discover').click();
     $('#q').value='inexistente';$('#searchBtn').click(); await sleep(20);
     assert.match($('#grid').textContent,/Sin resultados/);

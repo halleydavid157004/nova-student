@@ -42,6 +42,8 @@ test('HTTP API: arranque, búsqueda, alertas, seguridad y estado de IA', async t
       assert.equal(bypass.offers.length,offers.offers.length);
       const sources=await (await request('/api/sources?limit=1000')).json(); assert.ok(sources.sources.length>=40);
       const stats=await (await request('/api/stats')).json(); assert.equal(stats.total,offers.offers.length);
+      const worker=await (await request('/api/worker-status')).json();assert.equal(worker.worker.intervalHours,6);assert.ok(worker.worker.brave.budget.limit<=600);
+      assert.equal(worker.worker.brave.enabled,Boolean(process.env.BRAVE_SEARCH_API_KEY));
       const categories=await (await request('/api/categories')).json();assert.ok(categories.categories.length>5);
       const domain=await (await request('/api/domain-offers?domain=notion.com')).json(); assert.ok(domain.offers.length>0);
       const search=await (await request('/api/offers?q=notion')).json();assert.ok(search.offers.some(x=>/notion/i.test(x.brand)));
