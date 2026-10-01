@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
+import {initStaticSearch} from '../public/catalog-client.js';
 import {buildSite} from '../tools/static/build.js';
 const offer=()=>({id:1,brand:'Notion',title:'Notion para estudiantes',benefit:'Plan educativo',status:'active',official:true,verified_at:new Date().toISOString(),countries:['CO','GLOBAL'],requirements:['Correo educativo'],steps:['Verificar matrícula'],source_url:'https://www.notion.so/students?token=private',email:'private@example.invalid',admin_notes:'private-note'});
 test('static HTML contains real published offers, details, SEO and no private fields',()=>{
@@ -26,13 +27,13 @@ test('untrusted text cannot inject HTML, JSON-LD or filesystem paths',()=>{
  assert.throws(()=>buildSite({schema:1,offers:[{...offer(),id:'../../secret'}]}),/ID/);
  assert.throws(()=>buildSite({schema:1,offers:[offer(),offer()]}),/duplicate/);
 });
-test('client search handles accents and hides expired or stale cached offers',()=>{
+test('client search handles accents and hides expired or stale cached offers',async()=>{
  const site=buildSite({schema:1,offers:[{...offer(),title:'Diseño estudiantil'}]});
  const dom=new JSDOM(site.files.get('index.html'),{runScripts:'outside-only'});
- dom.window.eval(site.files.get('catalog.js'));
+ const catalog=JSON.parse(site.files.get('catalog.json'));const controller=await initStaticSearch(dom.window.document,catalog);
  const input=dom.window.document.getElementById('busqueda');input.value='diseno';input.dispatchEvent(new dom.window.Event('input'));
  assert.equal(dom.window.document.querySelector('article').hidden,false);
  input.value='unknown';input.dispatchEvent(new dom.window.Event('input'));assert.equal(dom.window.document.getElementById('vacio').hidden,false);
- const item=dom.window.document.querySelector('article');item.dataset.verified='2000-01-01';dom.window.eval(site.files.get('catalog.js').replaceAll('const ','var '));assert.equal(item.hidden,true);
+ const item=dom.window.document.querySelector('article');catalog.offers[0].verified_at='2000-01-01';controller.update();assert.equal(item.hidden,true);controller.dispose();
  dom.window.close();
 });

@@ -40,7 +40,7 @@ test('HTTP API boots from normalized RPCs, preserves public gating and saves ale
       try{health=await (await fetch(base+'/api/health')).json();if(health.ok)break}catch{}
       await new Promise(r=>setTimeout(r,20));
     }
-    assert.equal(health.version,'2.4.0');assert.equal(health.storage.schema,'normalized');assert.equal(health.storage.synced,true);
+    assert.equal(health.version,'2.5.0');assert.equal(health.storage.schema,'normalized');assert.equal(health.storage.synced,true);
     const offers=await (await fetch(base+'/api/offers')).json();
     assert.deepEqual(offers.offers.map(o=>o.id).sort(),[12,14]);
     assert.equal((await fetch(base+'/api/offers/13')).status,404);

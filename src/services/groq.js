@@ -8,7 +8,8 @@
  */
 
 const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
-import {EXTRACTION_SCHEMA} from './liveness.js';
+import {EXTRACTION_SCHEMA,maxAgeDays} from './liveness.js';
+import {published} from '../../public/search/engine.js';
 
 export async function extractLiveness(text) {
   return groqChat([
@@ -278,7 +279,7 @@ export async function chatWithNova(userMessage, offers = []) {
   // Smart Context: Score and sort offers based on relevance to the user's message
   const userWords = userMessage.toLowerCase().replace(/[^a-z0-9áéíóúñ]/g, ' ').split(/\s+/).filter(w => w.length > 2);
   
-  const scoredOffers = offers.map(o => {
+  const scoredOffers = offers.filter(o=>published(o,Date.now(),maxAgeDays())).map(o => {
     let score = o.confidence || 0;
     const searchableText = `${o.title} ${o.brand} ${o.category} ${o.summary}`.toLowerCase();
     
@@ -295,7 +296,7 @@ export async function chatWithNova(userMessage, offers = []) {
   scoredOffers.sort((a, b) => b.score - a.score);
 
   const topOffers = scoredOffers.slice(0, 10).map((o, i) =>
-    `${i + 1}. ${o.title} | ${o.category} | ${o.offer_type} | ${o.benefit || o.summary || ''} | Países: ${(o.countries||[]).join(', ') || 'sin dato'} | Requisitos: ${(o.requirements||[]).join('; ') || 'sin dato'} | Pasos: ${(o.steps||[]).join('; ') || 'sin dato'} | URL: ${o.source_url || 'N/A'}`
+    `${i + 1}. ${o.title} | ${o.category} | ${o.offer_type} | ${o.benefit || o.summary || ''} | Países: ${(o.countries||[]).join(', ') || 'sin dato'} | Requisitos: ${(o.requirements||[]).join('; ') || 'sin dato'} | Pasos: ${(o.steps||[]).join('; ') || 'sin dato'} | Ficha: https://nova-student-radar.onrender.com/?offer=${o.id} | Fuente: ${o.source_url || 'N/A'}`
   ).join('\n');
 
   const systemPrompt = `Eres "Nova AI", el asistente inteligente de Nova Student Radar, la plataforma más avanzada de ofertas para estudiantes.
@@ -324,7 +325,9 @@ REGLAS:
       { role: 'user', content: userMessage },
     ], { temperature: 0.6, max_tokens: 600 });
 
-    return answer || 'No pude generar una respuesta. Intenta reformular tu pregunta.';
+    if(!answer)return 'No pude generar una respuesta. Intenta reformular tu pregunta.';
+    const citations=scoredOffers.slice(0,3).filter(o=>Number.isSafeInteger(o.id)).map(o=>'https://nova-student-radar.onrender.com/?offer='+o.id);
+    return citations.length?answer+'\n\nFichas del catálogo consultado: '+citations.join(' · '):answer;
   } catch (e) {
     console.error('[Nova AI] Chat error:', e.message);
     throw e;
