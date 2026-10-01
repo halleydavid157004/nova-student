@@ -1,1 +1,7 @@
-(async()=>{try{const d=location.hostname.replace(/^www\./,'');const r=await fetch('http://localhost:4310/api/domain-offers?domain='+encodeURIComponent(d));if(!r.ok)return;const j=await r.json();if(!j.offers?.length)return;const o=j.offers[0];const b=document.createElement('button');b.textContent='🎓 Oferta estudiante';Object.assign(b.style,{position:'fixed',right:'18px',bottom:'18px',zIndex:'2147483647',border:'0',borderRadius:'999px',padding:'11px 14px',background:'#6d4aff',color:'white',font:'600 12px Inter,Arial',boxShadow:'0 10px 30px rgba(40,20,100,.28)',cursor:'pointer'});b.onclick=()=>window.open(o.source_url,'_blank','noopener');document.documentElement.appendChild(b)}catch{}})();
+(async()=>{try{
+ // Automatic domain checks are opt-in; popup checks only run on user request.
+ const settings=await chrome.storage.local.get({radarNotice:false});if(!settings.radarNotice)return;
+ const response=await chrome.runtime.sendMessage({type:'nova-domain',domain:location.hostname});if(!response?.offers?.length||response.error)return;
+ const offer=response.offers[0];if(!Number.isSafeInteger(offer.id)||offer.id<1)return;
+ const button=document.createElement('button');button.textContent='🎓 Beneficio estudiantil';Object.assign(button.style,{position:'fixed',right:'18px',bottom:'18px',zIndex:'2147483647',border:'0',borderRadius:'999px',padding:'11px 14px',background:'#6d4aff',color:'white',font:'600 12px Arial',cursor:'pointer'});button.addEventListener('click',()=>window.open(response.apiOrigin+'/?offer='+offer.id,'_blank','noopener,noreferrer'));document.documentElement.append(button);
+}catch{}})();

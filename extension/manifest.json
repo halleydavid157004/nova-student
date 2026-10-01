@@ -1,1 +1,31 @@
-{"manifest_version":3,"name":"Nova Student Radar","version":"1.0.0","description":"Detecta beneficios estudiantiles mientras navegas.","permissions":["storage","activeTab"],"host_permissions":["http://localhost:4310/*"],"action":{"default_popup":"popup.html","default_title":"Nova Student"},"content_scripts":[{"matches":["<all_urls>"],"js":["content.js"],"run_at":"document_idle"}]}
+{
+  "manifest_version": 3,
+  "name": "Nova Student Radar",
+  "version": "1.1.0",
+  "description": "Detecta beneficios estudiantiles publicados y revisados.",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://nova-student-radar.onrender.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Nova Student"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
