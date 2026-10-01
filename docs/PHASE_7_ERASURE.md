@@ -4,7 +4,7 @@ Fecha: 2026-10-01, Colombia. Seguimiento del PR #21; no completa eliminación de
 
 ## Plan y archivos
 
-Migración phase7_email_erasure y rollback; subscriptions API, db/cache normalizado, preferencias, worker y aviso. Tests de API, DOM, caché, PostgreSQL y E2E. Sin nuevas dependencias, servicios ni pagos. Docs actuales de Supabase revisadas: changelog y managing-user-data/cascade-deletes. Ninguna nueva API Auth: borrar una fila de auth.users no revoca JWT, por eso la eliminación integral de cuentas requiere implementación propia posterior.
+Migración phase7_email_erasure y rollback; subscriptions API, db/cache normalizado, preferencias, worker y aviso. Tests de API, DOM, caché, PostgreSQL y E2E. Sin nuevas dependencias, servicios ni pagos. Fuentes oficiales consultadas el 2026-10-01: [changelog](https://supabase.com/changelog), [gestión de datos de usuarios](https://supabase.com/docs/guides/auth/managing-user-data) y [cascadas](https://supabase.com/docs/guides/database/postgres/cascade-deletes). Ninguna nueva API Auth: borrar una fila de auth.users no revoca JWT, por eso la eliminación integral de cuentas requiere implementación propia posterior.
 
 ## Supresión por enlace
 
