@@ -17,11 +17,11 @@ export function emailRequirement(o){
 }
 export function published(o,now=Date.now(),maxAge=14){const stamp=Date.parse(o.liveness_verified_at||o.verified_at||o.discovered_at||'');return o.status==='active'&&(o.official===true||o.reviewed===true)&&(!o.expires_at||Date.parse(o.expires_at)>now)&&Number.isFinite(stamp)&&now-stamp<=maxAge*86400000;}
 export function createSearchIndex(offers,{maxAge=14}={}){
- const rows=offers.map(o=>({offer:o,brand:fold(o.brand),tokens:new Map()}));
+ const rows=offers.filter(o=>published(o,Date.now(),maxAge)).map(o=>({offer:o,brand:fold(o.brand),tokens:new Map()}));
  const inverted=new Map();
  for(let i=0;i<rows.length;i++){
   const row=rows[i],o=row.offer;
-  for(const [value,weight] of [[o.brand,12],[o.title,7],[o.category,5],[o.benefit,3],[o.summary,2],[o.verification,1],[(o.tags||[]).join(' '),3],[(o.requirements||[]).join(' '),1]])for(const token of words(value))row.tokens.set(token,Math.max(row.tokens.get(token)||0,weight));
+  for(const [value,weight] of [[o.brand,12],[o.title,7],[o.category,5],[o.benefit,3],[o.summary,2],[o.verification,1],[(Array.isArray(o.tags)?o.tags:[]).join(' '),3],[(Array.isArray(o.requirements)?o.requirements:[]).join(' '),1]])for(const token of words(value))row.tokens.set(token,Math.max(row.tokens.get(token)||0,weight));
   for(const [token,weight] of row.tokens){if(!inverted.has(token))inverted.set(token,new Map());inverted.get(token).set(i,weight);}
  }
  const vocabulary=[...inverted.keys()];

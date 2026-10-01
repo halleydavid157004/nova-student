@@ -28,7 +28,8 @@ test('combined filters, temporal decay, publication and email uncertainty',()=>{
  assert.equal(index.search({q:'figma'}).some(o=>o.id===11),false);
  const expired=createSearchIndex([{...base,id:99,title:'Old',verified_at:'2000-01-01'}]);assert.equal(expired.search().length,0);
  assert.equal(index.search({q:'notion',week:true,now:Date.now()+8*86400000}).length,0);
- assert.ok(index.suggestions('notino').includes('notion'));
+ assert.ok(index.suggestions('notino').includes('notion'));assert.ok(!index.suggestions('unreviewed').includes('unreviewed'));
+ assert.doesNotThrow(()=>createSearchIndex([{...base,id:55,brand:'Safe',tags:'malformed',requirements:'malformed'}]));
  assert.deepEqual(gapTopics('correo nombre@privado.com teléfono 3001234567'),['email']);
  assert.deepEqual(gapTopics('nombre personal desconocido 123456789'),[]);
 });
