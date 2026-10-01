@@ -78,5 +78,6 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: chromium-${{ runner.os }}-${{ hashFiles('tools/browser/package-lock.json') }}
+          restore-keys: chromium-${{ runner.os }}-
       - run: npx --prefix tools/browser playwright install --with-deps chromium
       - run: npm test --prefix tools/browser
