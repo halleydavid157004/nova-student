@@ -4,7 +4,7 @@ Consulta y trabajo: 2026-10-01, Colombia. La fase todavía no está completa en 
 
 ## Plan y archivos
 
-Migración `20261001170410_phase6_accounts.sql` y rollback no destructivo; `public/accounts`, `account.html`, configuración pública del servidor; integración de favoritos; extensión y generador `tools/extension/build.js`; tests de cliente, permisos y Playwright. Sin SDK de servidor, dependencia nueva ni servicio de pago.
+Migraciones `20261001170410_phase6_accounts.sql` y `20261001171847_phase6_account_policy_plan.sql` (cachea el JWT completo por consulta antes de leer su claim) y rollback no destructivo; `public/accounts`, `account.html`, configuración pública del servidor; integración de favoritos; extensión y generador `tools/extension/build.js`; tests de cliente, permisos y Playwright. Sin SDK de servidor, dependencia nueva ni servicio de pago.
 
 ## Implementado
 

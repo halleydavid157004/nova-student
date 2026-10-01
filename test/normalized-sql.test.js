@@ -24,6 +24,8 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
   const phase3Tests=readFileSync('test/phase3-sql.sql','utf8');
   const phase2Tests=readFileSync('test/phase2-sql.sql','utf8');
   const accounts=readFileSync('supabase/migrations/20261001170410_phase6_accounts.sql','utf8');
+  const accountPolicy=readFileSync('supabase/migrations/20261001171847_phase6_account_policy_plan.sql','utf8');
+  const accountPolicyRollback=readFileSync('supabase/rollback/phase6_account_policy_plan.sql','utf8');
   const accountTests=readFileSync('test/phase6-sql.sql','utf8');
   const accountRollback=readFileSync('supabase/rollback/phase6_accounts.sql','utf8');
   const rollback = readFileSync('supabase/rollback/phase1_normalized_storage.sql','utf8');
@@ -101,7 +103,9 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
     ${phase3Indexes}
     ${phase3Tests}
     reset role;${accounts}
+    ${accountPolicy}
     ${accountTests}
+    ${accountPolicyRollback}
     ${accountRollback}
     do $$ begin if has_table_privilege('authenticated','public.user_profiles','SELECT') then raise exception 'Account rollback still exposes profiles';end if;if (select count(*) from public.user_profiles)<>2 then raise exception 'Account rollback deleted data';end if;end $$;
     reset role;
