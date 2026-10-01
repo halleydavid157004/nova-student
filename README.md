@@ -190,3 +190,7 @@ La extensión apunta a producción. Fuente de configuración: `extension/setting
 ### Destacados y actualización
 
 Hot, Imperdible y Por vencer usan criterios explícitos de revisión, gratuidad y vencimiento; no popularidad inventada. El radar reserva capacidad para revisar las ofertas ya aprobadas. Consulta [criterios y operación](docs/HIGHLIGHTS.md).
+
+### Consentimiento y correo
+
+Las alertas guardadas requieren autorización separada y confirmación por alerta para enviar correo. Preferencias, baja y presupuesto compartido están preparados; el remitente y la identidad del responsable siguen pendientes de configurar. Consulta [fase 7 y activación](docs/PHASE_7.md).

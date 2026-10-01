@@ -1,5 +1,5 @@
 import {scanAll, discoverAll, getBraveDiscoveryStatus} from './services/crawler.js';
-import {sendDueDigests} from './services/email.js';
+import {sendDueDigests,sendPendingConfirmations} from './services/email.js';
 import crypto from 'node:crypto';
 import {db,save,flushSave,claimWorker,assertWorker,finishWorker,setWorkerContext,workerMaintenance} from './db.js';
 import {publicCatalog} from './services/catalog-export.js';
@@ -52,6 +52,7 @@ async function performCycle({sourceOptions,force,validationOnly,onCatalog}) {
     const scan = await scanAll({...sourceOptions,beforeBatch:()=>assertWorker(lease.token)});
     const catalog=publicCatalog(db.offers);
     await onCatalog?.(catalog);
+    const confirmations=validationOnly?[]:await sendPendingConfirmations({beforeSend:()=>assertWorker(lease.token)});
     const deliveries=validationOnly?[]:await sendDueDigests({beforeSend:()=>assertWorker(lease.token)});
 
     state.lastCompletedAt = new Date().toISOString();
@@ -72,7 +73,7 @@ async function performCycle({sourceOptions,force,validationOnly,onCatalog}) {
         ok: scan.filter(item => item.status >= 200 && item.status < 400).length,
       },
       db: {offers: db.offers.length, sources: db.sources.length},
-      catalog:{offers:catalog.offers.length},digests:{sent:deliveries.filter(x=>x.sent).length,skipped:deliveries.filter(x=>x.skipped).length,errors:deliveries.filter(x=>x.error).length},
+      catalog:{offers:catalog.offers.length},confirmations:{sent:confirmations.filter(x=>x.sent).length,errors:confirmations.filter(x=>x.error).length},digests:{sent:deliveries.filter(x=>x.sent).length,skipped:deliveries.filter(x=>x.skipped).length,errors:deliveries.filter(x=>x.error).length},
       brave:{used:getBraveDiscoveryStatus().budget?.used||0},engine:radarEngine(),attempt:lease.attempt,
 
     };

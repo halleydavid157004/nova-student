@@ -553,6 +553,7 @@ $('#alertForm').addEventListener('submit', async (e) => {
   btn.textContent = 'Guardando…';
 
   const data = Object.fromEntries(new FormData(e.currentTarget));
+  data.consent=$('#alertConsent')?.checked===true;
   data.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Bogota';
 
   try {
@@ -564,7 +565,7 @@ $('#alertForm').addEventListener('submit', async (e) => {
 
     status.textContent = result.deliveryConfigured === false
       ? '✓ Alerta guardada. Los envíos por correo están pendientes de configuración.'
-      : '✓ Alerta guardada. El correo requiere una suscripción confirmada.';
+      : '✓ Alerta guardada. Si corresponde, recibirás un enlace para confirmar. Las solicitudes repetidas se limitan a una por día.';
     status.className = 'success';
     toast(result.deliveryConfigured === false ? 'Alerta guardada; correo pendiente' : 'Alerta creada ✓', 'success');
     setTimeout(() => closeAlertModal(), 1400);
@@ -1054,3 +1055,5 @@ function initNovaAI() {
 }
 
 init().catch(console.error);
+
+fetch('/api/privacy').then(r=>r.json()).then(p=>{if(p.ready){$('#alertConsent').disabled=false;$('#consentNotice').textContent='La confirmación llegará por correo después de procesar la solicitud.';}}).catch(()=>{});
