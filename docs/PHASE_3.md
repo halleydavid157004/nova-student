@@ -48,3 +48,7 @@ Si faltan Secrets no actives la variable. Si debes volver temporalmente al motor
 Los cron de GitHub pueden retrasarse o perder ejecuciones bajo carga; se desactivan en repos públicos tras 60 días sin actividad. No se promete puntualidad exacta ni disponibilidad ilimitada. Se conserva minuto 17 para evitar inicio de hora, y una ejecución manual permite revisar/reanudar. Sin actividad, reactiva Actions desde GitHub. No se crean commits vacíos para eludir esa política.
 
 Fuentes oficiales consultadas 2026-10-01 UTC (2026-09-30 Colombia): [schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule), [billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions), [Resend idempotency](https://resend.com/docs/dashboard/emails/idempotency-keys), [Resend usage](https://resend.com/docs/api-reference/rate-limit). Más límites en `FREE_TIER_LIMITS.md`.
+
+## Verificación aplicada
+
+Migración `20261001010924_phase3_actions_radar.sql` aplicada el 2026-10-01 a las 01:09 UTC (2026-09-30, 20:09 Colombia), con historial remoto alineado. CI [36799618544](https://github.com/halleydavid157004/nova-student/actions/runs/36799618544) pasó PostgreSQL 17, Node 20/24, Windows y Chromium. Local: 63 pruebas aprobadas, 2 omisiones previstas; prueba SQL aprobada. Verificación posterior: 357 ofertas conservadas, 34 públicas, ninguna lease ni entrega ficticia en producción, RPCs y tablas nuevos sin acceso anon/authenticated. La ejecución productiva sigue pendiente de Secrets y activación del propietario.

@@ -43,6 +43,7 @@ do $$ declare first jsonb; second jsonb; begin
  first:=public.nova_claim_digest(21,repeat('d',64));if (first->>'daily_used')::int<>1 then raise exception 'Daily reset failed';end if;
  perform public.nova_finish_digest(repeat('d',64),'uncertain',null);
  if has_function_privilege('authenticated','public.nova_claim_digest(bigint,text)','EXECUTE') or has_table_privilege('anon','nova_private.digest_deliveries','SELECT') then raise exception 'Recipient metadata exposed';end if;
+ if not exists(select 1 from pg_indexes where schemaname='nova_private' and tablename='job_leases' and indexdef like '%(run_id)%') or not exists(select 1 from pg_indexes where schemaname='nova_private' and tablename='digest_deliveries' and indexdef like '%(alert_id)%') then raise exception 'Unindexed foreign keys';end if;
  -- Maintenance retains approvals and current budgets.
  perform public.nova_worker_maintenance();
  if not exists(select 1 from nova_private.offer_versions where approved) or not exists(select 1 from nova_private.budget_usage where provider='brave') then raise exception 'Maintenance erased retained state';end if;
