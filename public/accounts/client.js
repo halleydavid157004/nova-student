@@ -32,7 +32,7 @@ export async function createAccountClient(config,{fetcher=fetch,storage=sessionS
  async function signIn(email,redirect){
  if(typeof email!=='string'||email.length>254||!/^\S+@\S+\.\S+$/.test(email))throw new Error('Introduce un correo válido');
  let pending;try{pending=JSON.parse(verifierStorage.getItem(verifierSlot)||'null');}catch{}if(pending&&Date.now()-pending.created<60000)throw new Error('Espera un minuto antes de solicitar otro enlace.');
- const destination=new URL(redirect);if(destination.protocol!=='https:'&&destination.hostname!=='localhost')throw new Error('Destino inválido');
+ const destination=new URL(redirect);if(destination.protocol!=='https:'&&!(destination.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(destination.hostname)))throw new Error('Destino inválido');
  const verifier=encode(cryptoApi.getRandomValues(new Uint8Array(32)));
  const challenge=encode(new Uint8Array(await cryptoApi.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));
  verifierStorage.setItem(verifierSlot,JSON.stringify({verifier,created:Date.now()}));

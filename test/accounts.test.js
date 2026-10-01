@@ -48,3 +48,11 @@ test('refresh is shared, transient failures retain session and revoked sessions 
  const failure=await createAccountClient(config,{storage,cryptoApi:webcrypto,fetcher:async()=>new Response(null,{status:503})});await assert.rejects(failure.restore());assert.ok(storage.getItem(slot));
  const revoked=await createAccountClient(config,{storage,cryptoApi:webcrypto,fetcher:async()=>new Response(null,{status:401})});await assert.rejects(revoked.restore());assert.equal(storage.getItem(slot),null);
 });
+
+test('PKCE redirects allow HTTP only on explicit loopback development hosts',async()=>{
+ const options={storage:memory(),cryptoApi:webcrypto,fetcher:async()=>Response.json({})};
+ const client=await createAccountClient(config,options);
+ await assert.rejects(client.signIn('fixture@example.invalid','http://external.invalid/account.html'),/Destino inválido/);
+ await assert.rejects(client.signIn('fixture@example.invalid','ftp://localhost/account.html'),/Destino inválido/);
+ await client.signIn('fixture@example.invalid','http://127.0.0.1:4310/account.html');
+});
