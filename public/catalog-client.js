@@ -1,3 +1,4 @@
+import {highlights} from './search/highlights.js';
 import {createSearchIndex,gapTopics} from './search/engine.js';
 import {countryOptions} from './search/countries.js';
 export async function initStaticSearch(doc,catalog){
@@ -12,7 +13,7 @@ export async function initStaticSearch(doc,catalog){
   const filters={q:search?.value||'',email:doc.getElementById('email')?.value||'ALL',week:doc.getElementById('week')?.checked||false,cross:doc.getElementById('cross')?.checked||false};
   for(const key of ['country','category','verification'])filters[key]=doc.getElementById(key)?.value||'ALL';
   const found=index.search(filters),ids=new Set(found.map(o=>String(o.id)));
-  for(const item of items){item.hidden=!ids.has(item.dataset.id);const offer=catalog.offers.find(o=>String(o.id)===item.dataset.id);let note=item.querySelector('[data-regional-note]');if(!note){note=doc.createElement('p');note.dataset.regionalNote='';item.append(note);}const foreign=offer&&filters.country!=='ALL'&&!(offer.countries||[]).includes('GLOBAL')&&!(offer.countries||[]).includes(filters.country);note.textContent=foreign?'Oferta de otro país: comprueba residencia, matrícula y requisitos.':'';note.hidden=!foreign;}
+  for(const item of items){item.hidden=!ids.has(item.dataset.id);const offer=catalog.offers.find(o=>String(o.id)===item.dataset.id);const labels=item.querySelector('[data-highlights]');if(labels&&offer){labels.replaceChildren();for(const h of highlights(offer,{maxAge:days})){const span=doc.createElement('span');span.textContent=h.label+' · ';span.title=h.reason;labels.append(span);}}let note=item.querySelector('[data-regional-note]');if(!note){note=doc.createElement('p');note.dataset.regionalNote='';item.append(note);}const foreign=offer&&filters.country!=='ALL'&&!(offer.countries||[]).includes('GLOBAL')&&!(offer.countries||[]).includes(filters.country);note.textContent=foreign?'Oferta de otro país: comprueba residencia, matrícula y requisitos.':'';note.hidden=!foreign;}
   const grid=doc.getElementById('offersGrid');if(grid)for(const o of found){const card=items.find(item=>item.dataset.id===String(o.id));if(card)grid.append(card);}
   const result=doc.getElementById('resultados');if(result)result.textContent=found.length+' beneficios disponibles';
   const empty=doc.getElementById('vacio');if(empty)empty.hidden=found.length>0;
