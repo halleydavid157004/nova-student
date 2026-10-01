@@ -180,3 +180,9 @@ La [fase 4](docs/PHASE_4.md) prepara HTML inicial con beneficios publicados, fic
 ### Cobertura internacional y duplicados
 
 El radar rota búsquedas por los 249 códigos ISO, con prioridad adicional para Latinoamérica y el mismo presupuesto de Brave. Activa «Explorar también otros países» para ampliar resultados; comprueba residencia y matrícula en cada ficha. La búsqueda y el catálogo agrupan duplicados conocidos sin borrar historial. Detalles, pruebas y límites: [docs/RADAR_COVERAGE.md](docs/RADAR_COVERAGE.md).
+
+### Cuentas y extensión (base de fase 6)
+
+`/account.html` prepara favoritos y perfil sincronizados con Supabase Auth. Las cuentas públicas siguen desactivadas hasta verificar SMTP gratuito, redirecciones y tratamiento de datos; los favoritos locales continúan funcionando. [Configuración y límites pendientes](docs/PHASE_6.md).
+
+La extensión apunta a producción. Fuente de configuración: `extension/settings.json`; regenerar manifest/config con `node tools/extension/build.js`. Carga `extension/` sin empaquetar en modo desarrollador de Chrome/Edge. Los avisos al navegar son opt-in; los favoritos de cuenta se abren en la web. No está publicada en las tiendas.

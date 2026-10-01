@@ -1,6 +1,6 @@
 {
   "name": "nova-student-radar",
-  "version": "2.5.1",
+  "version": "2.6.0",
   "private": true,
   "description": "Global student benefits discovery, search and alert platform",
   "main": "server.js",

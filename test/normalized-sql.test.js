@@ -23,9 +23,17 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
   const indexesRollback=readFileSync('supabase/rollback/phase3_indexes.sql','utf8');
   const phase3Tests=readFileSync('test/phase3-sql.sql','utf8');
   const phase2Tests=readFileSync('test/phase2-sql.sql','utf8');
+  const accounts=readFileSync('supabase/migrations/20261001170410_phase6_accounts.sql','utf8');
+  const accountPolicy=readFileSync('supabase/migrations/20261001171847_phase6_account_policy_plan.sql','utf8');
+  const accountPolicyRollback=readFileSync('supabase/rollback/phase6_account_policy_plan.sql','utf8');
+  const accountTests=readFileSync('test/phase6-sql.sql','utf8');
+  const accountRollback=readFileSync('supabase/rollback/phase6_accounts.sql','utf8');
   const rollback = readFileSync('supabase/rollback/phase1_normalized_storage.sql','utf8');
   const sql = `
     create role anon; create role authenticated; create role service_role bypassrls;
+    create schema auth;create table auth.users(id uuid primary key);grant usage on schema auth to authenticated;
+    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+    create function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb $$;
     create table public.nova_state(id integer primary key,state jsonb not null,updated_at timestamptz default now());
     grant select,insert,update on public.nova_state to service_role;
     ${migration}
@@ -94,6 +102,13 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
     ${phase3}
     ${phase3Indexes}
     ${phase3Tests}
+    reset role;${accounts}
+    ${accountPolicy}
+    ${accountTests}
+    ${accountPolicyRollback}
+    ${accountRollback}
+    do $$ begin if has_table_privilege('authenticated','public.user_profiles','SELECT') then raise exception 'Account rollback still exposes profiles';end if;if (select count(*) from public.user_profiles)<>2 then raise exception 'Account rollback deleted data';end if;end $$;
+    reset role;
     ${phase3Rollback}
     ${indexesRollback}
     ${rollback}
