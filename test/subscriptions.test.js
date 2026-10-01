@@ -48,3 +48,11 @@ test('reopening another email link in the same document replaces prior handlers 
  assert.equal(dom.window.document.getElementById('confirm').hidden,true);
  dom.window.document.getElementById('unsubscribe').click();await new Promise(r=>setTimeout(r,0));assert.equal(calls.length,2);assert.equal(calls[1].token,'second');dom.window.close();
 });
+
+test('an old preview response cannot overwrite a newly opened unsubscribe link',async()=>{
+ const dom=new JSDOM(readFileSync('public/preferences.html','utf8'),{url:'https://example.invalid/preferences.html#confirm=first'});let complete;
+ const old=initPreferences(dom.window.document,{location:dom.window.location,history:dom.window.history,fetcher:()=>new Promise(r=>complete=r)});
+ dom.window.location.hash='unsubscribe=second';await initPreferences(dom.window.document,{location:dom.window.location,history:dom.window.history,fetcher:async()=>{throw new Error('Unused');}});
+ complete({ok:true,json:async()=>({query:'Old private query',country:'CO',frequency:'daily'})});await old;
+ assert.equal(dom.window.document.getElementById('confirm').hidden,true);assert.equal(dom.window.document.getElementById('preview').textContent,'');assert.match(dom.window.document.getElementById('status').textContent,/baja/);dom.window.close();
+});
