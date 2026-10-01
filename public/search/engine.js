@@ -1,3 +1,4 @@
+import {uniqueOffers} from './identity.js';
 import {SYNONYMS} from './synonyms.js';
 export const fold=value=>String(value??'').normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase().trim();
 const words=value=>fold(value).match(/[\p{L}\p{N}]+/gu)||[];
@@ -25,7 +26,7 @@ export function createSearchIndex(offers,{maxAge=14}={}){
   for(const [token,weight] of row.tokens){if(!inverted.has(token))inverted.set(token,new Map());inverted.get(token).set(i,weight);}
  }
  const vocabulary=[...inverted.keys()];
- function search({q='',country='ALL',category='ALL',verification='ALL',email='ALL',week=false,limit=500,now=Date.now()}={}){
+ function search({q='',country='ALL',category='ALL',verification='ALL',email='ALL',week=false,cross=false,limit=500,now=Date.now()}={}){
   const terms=queryTerms(q),scores=new Map();let candidates=null;
   for(const term of terms){const matched=new Map(),equivalent=aliases.get(term)||[term];
    for(const token of vocabulary){let multiplier=0;
@@ -39,9 +40,10 @@ export function createSearchIndex(offers,{maxAge=14}={}){
    for(const [i,score] of matched)scores.set(i,(scores.get(i)||0)+score);
   }
   const wanted=fold(q),selected=candidates===null?rows.map((_,i)=>i):[...candidates];
-  return selected.filter(i=>{const o=rows[i].offer;return published(o,now,maxAge)&&(country==='ALL'||(o.countries||[]).includes('GLOBAL')||(o.countries||[]).includes(country))&&(category==='ALL'||o.category===category)&&(verification==='ALL'||o.verification===verification)&&(email==='ALL'||emailRequirement(o)===email)&&(!(week===true||week==='true')||now-Date.parse(o.liveness_verified_at||o.verified_at||'')<=7*86400000);})
-   .map(i=>{const row=rows[i],o=row.offer;const age=Math.max(0,(now-Date.parse(o.liveness_verified_at||o.verified_at||o.discovered_at))/86400000);return {offer:o,score:(scores.get(i)||0)+(terms.some(term=>(aliases.get(term)||[term]).includes(fold(o.category)))?100:0)+(wanted&&row.brand===wanted?1000:0)+(wanted&&row.brand.startsWith(wanted)?300:0)+(Number(o.liveness_score)||Number(o.confidence)||0)/10+Math.max(0,14-age)};})
-   .sort((a,b)=>b.score-a.score||Number(a.offer.id)-Number(b.offer.id)).slice(0,Math.max(1,Math.min(500,Number(limit)||100))).map(x=>x.offer);
+  const results=selected.filter(i=>{const o=rows[i].offer;return published(o,now,maxAge)&&(cross===true||cross==='true'||country==='ALL'||(o.countries||[]).includes('GLOBAL')||(o.countries||[]).includes(country))&&(category==='ALL'||o.category===category)&&(verification==='ALL'||o.verification===verification)&&(email==='ALL'||emailRequirement(o)===email)&&(!(week===true||week==='true')||now-Date.parse(o.liveness_verified_at||o.verified_at||'')<=7*86400000);})
+   .map(i=>{const row=rows[i],o=row.offer;const age=Math.max(0,(now-Date.parse(o.liveness_verified_at||o.verified_at||o.discovered_at))/86400000);return {offer:o,score:(scores.get(i)||0)+((o.countries||[]).includes(country)?40:0)+(terms.some(term=>(aliases.get(term)||[term]).includes(fold(o.category)))?100:0)+(wanted&&row.brand===wanted?1000:0)+(wanted&&row.brand.startsWith(wanted)?300:0)+(Number(o.liveness_score)||Number(o.confidence)||0)/10+Math.max(0,14-age)};})
+   .sort((a,b)=>b.score-a.score||Number(a.offer.id)-Number(b.offer.id)).map(x=>x.offer);
+  return uniqueOffers(results).slice(0,Math.max(1,Math.min(500,Number(limit)||100)));
  }
  function suggestions(q){const terms=queryTerms(q);return [...new Set(terms.flatMap(term=>vocabulary.filter(token=>term.length>=3&&distance(term,token,2)<=2)))].slice(0,5);}
  return {search,suggestions};

@@ -12,6 +12,8 @@
  */
 
 import crypto from 'node:crypto';
+import {canonicalSource,sameOffer} from '../../public/search/identity.js';
+import {discoveryQueries} from './discovery-queries.js';
 import {prioritizedSources} from './scan-priority.js';
 import { db, save, saveSoon, flushSave, id, validationContext, recordCheck } from '../db.js';
 import { extractOfferWithAI, aiEnabled, discoverWithGroq, extractLiveness } from './groq.js';
@@ -115,7 +117,7 @@ function guessCountries(text) {
   for (const [code, pattern] of Object.entries(map)) {
     if (new RegExp(pattern, 'i').test(low)) hits.push(code);
   }
-  return hits.length ? hits : ['GLOBAL'];
+  return hits;
 }
 
 /**
@@ -198,7 +200,7 @@ export async function scanSource(source,{client=sourceClient,headless,extract=ai
       source.failure_count=(source.failure_count||0)+1;
       source.next_retry_at=new Date(Date.now()+Math.max(Number(r.retryAfterMs)||0,Math.min(24*3600000,3600000*2**Math.min(source.failure_count,5)))).toISOString();
     }else{source.failure_count=0;source.next_retry_at=null;}
-    for(const offer of db.offers.filter(o=>o.source_url===source.url)){
+    for(const offer of db.offers.filter(o=>canonicalSource(o.source_url)===canonicalSource(source.url))){
       const context=await validationContext(offer);
       const current={...context.offer,approved_extraction:context.approved_extraction};
       const check=await validateOffer(current,r,{extract,headless,reports:context.report_weight});
@@ -208,7 +210,7 @@ export async function scanSource(source,{client=sourceClient,headless,extract=ai
     r.ok=r.status>=200&&r.status<300&&!r.blocked;
 
     // Try to auto-extract new offer if source has no linked offer
-    const hasOffer = db.offers.some(o => o.source_url === source.url);
+    const hasOffer = db.offers.some(o => canonicalSource(o.source_url) === canonicalSource(source.url));
     if (r.ok && !hasOffer && text.length > 200) {
       // Try fast regex-based extraction first (no API cost)
       let extracted = extractOfferFromText(text, source.url, source.name);
@@ -253,7 +255,7 @@ export async function scanSource(source,{client=sourceClient,headless,extract=ai
       }
 
       if (extracted) {
-        const exists = db.offers.some(o => o.slug === extracted.slug || o.source_url === source.url || o.source_domain === extracted.source_domain);
+        const exists = db.offers.some(o => o.slug === extracted.slug || sameOffer(o,extracted));
         if (!exists) {
           const newOffer = {
             id: id('offers'),
@@ -354,11 +356,10 @@ export async function discoverStudentOffers() {
 
       const url = candidates.find(x => !new URL(x).hostname.endsWith('studentoffers.co')) || candidates[0];
       if (!url) continue;
-      if (db.sources.some(x => x.url === url)) continue;
+      if (db.sources.some(x => canonicalSource(x.url) === canonicalSource(url))) continue;
 
       let dom;
       try { dom = new URL(url).hostname.replace(/^www\./, ''); } catch { continue; }
-      if (db.sources.some(x => x.domain === dom)) continue;
 
       const category = item.category || item.type || guessCategory(
         [title, item.description || '', item.tags?.join(' ') || ''].join(' ')
@@ -400,7 +401,7 @@ export async function discoverStudentOffers() {
    DISCOVER: Brave Search API
    Much more aggressive query set focused on trending topics
    ═══════════════════════════════════════════ */
-const BRAVE_QUERIES = [
+const TOPIC_QUERIES = [
   // General and Latin America
   'beneficios estudiantes Colombia software gratis correo institucional',
   'descuentos universitarios Latinoamerica programas educativos',
@@ -449,6 +450,8 @@ const BRAVE_QUERIES = [
   // Travel
   'student travel discount flights isic',
 ];
+
+export const BRAVE_QUERIES = discoveryQueries(TOPIC_QUERIES);
 
 let braveCycleTask;
 export function getBraveDiscoveryStatus() {
@@ -504,7 +507,7 @@ async function runBraveDiscovery() {
         const title = String(item.title || domain);
         const combined = title + ' ' + String(item.description || '');
         if (!/(student|education|academic|university|college|\.edu|estudiant)/i.test(combined)) continue;
-        if (db.sources.some(source => source.url === url || source.domain === domain)) continue;
+        if (db.sources.some(source => canonicalSource(source.url) === canonicalSource(url))) continue;
         const aggregators = ['reddit.com', 'twitter.com', 'facebook.com', 'wikipedia.org', 'quora.com', 'medium.com', 'forbes.com'];
         if (aggregators.some(host => domain === host || domain.endsWith('.' + host))) continue;
         if (/\/(blog|articles?|news|reviews?)\//i.test(parsed.pathname)) continue;
@@ -552,7 +555,7 @@ export async function discoverGitHubPartners({client=sourceClient}={}) {
         const dom = new URL(url).hostname.replace(/^www\./, '');
         // Skip GitHub's own domains and common non-partner links
         if (/(github\.com|github\.io|microsoft\.com|google\.com|fonts\.|cdn\.|analytics\.|twitter\.|facebook\.)/i.test(dom)) continue;
-        if (db.sources.some(x => x.domain === dom)) continue;
+        if (db.sources.some(x=>canonicalSource(x.url)===canonicalSource(url))) continue;
 
         const s = {
           id: id('sources'),

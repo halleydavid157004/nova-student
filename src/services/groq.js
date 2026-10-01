@@ -9,6 +9,7 @@
 
 const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
 import {EXTRACTION_SCHEMA,maxAgeDays} from './liveness.js';
+import {uniqueOffers} from '../../public/search/identity.js';
 import {published} from '../../public/search/engine.js';
 
 export async function extractLiveness(text) {
@@ -279,7 +280,7 @@ export async function chatWithNova(userMessage, offers = []) {
   // Smart Context: Score and sort offers based on relevance to the user's message
   const userWords = userMessage.toLowerCase().replace(/[^a-z0-9áéíóúñ]/g, ' ').split(/\s+/).filter(w => w.length > 2);
   
-  const scoredOffers = offers.filter(o=>published(o,Date.now(),maxAgeDays())).map(o => {
+  const scoredOffers = uniqueOffers(offers.filter(o=>published(o,Date.now(),maxAgeDays()))).map(o => {
     let score = o.confidence || 0;
     const searchableText = `${o.title} ${o.brand} ${o.category} ${o.summary}`.toLowerCase();
     
