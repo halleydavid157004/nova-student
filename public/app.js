@@ -38,7 +38,7 @@ const ISO_CODES = [
 /* ============================================
    ESTADO
    ============================================ */
-let accountClient=null;
+let accountClient=null,accountSyncing=false;
 let offers = [];
 let saved = new Set();
 try { saved = new Set(JSON.parse(localStorage.getItem('nova-saved-offers') || '[]').filter(Number.isInteger)); } catch { localStorage.removeItem('nova-saved-offers'); }
@@ -254,6 +254,7 @@ function bindCards(root) {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const id = Number(btn.dataset.save);
+      if(accountSyncing){toast('Espera a que termine la sincronización de favoritos.');return;}
       try {
         if(accountClient){btn.disabled=true;await accountClient.favorite(id,!saved.has(id));}
         if (saved.has(id)) {
@@ -901,6 +902,20 @@ async function loadTrending() {
    ============================================ */
 let currentTab = 'all';
 
+async function syncAccountFavorites(){
+  try{
+    const config=await apiFetch('/api/auth-config');if(!config.enabled)return;
+    accountSyncing=true;
+    const {createAccountClient}=await import('./accounts/client.js'),candidate=await createAccountClient(config);
+    if(await candidate.restore()){
+      const merged=await candidate.mergeFavorites([...saved]);saved=new Set(merged);accountClient=candidate;
+      localStorage.removeItem('nova-saved-offers');$('#accountLink').textContent='Mi cuenta · sincronizada';
+      updateSavedBadge();render(offers);if(currentView==='saved')await loadSaved();
+    }
+  }catch{toast('La sincronización no está disponible. Tus favoritos locales se conservan.');}
+  finally{accountSyncing=false;}
+}
+
 async function init() {
   initTheme();
   loadCountries();
@@ -915,9 +930,6 @@ async function init() {
     });
   });
 
-  // Accounts are optional; local favorites continue working when disabled.
-  try{const config=await apiFetch('/api/auth-config');if(config.enabled){const {createAccountClient}=await import('./accounts/client.js');const candidate=await createAccountClient(config);if(await candidate.restore()){const merged=await candidate.mergeFavorites([...saved]);saved=new Set(merged);accountClient=candidate;localStorage.removeItem('nova-saved-offers');$('#accountLink').textContent='Mi cuenta · sincronizada';}}}catch{toast('La sincronización no está disponible. Tus favoritos locales se conservan.');}
-
   // Cargar todo en paralelo
   await Promise.all([
     loadMeta(),
@@ -927,8 +939,9 @@ async function init() {
     loadTrending(),
   ]);
 
-  // Búsqueda inicial
+  // The public catalog renders before optional account synchronization.
   await search();
+  syncAccountFavorites();
   const offerId=new URLSearchParams(location.search).get('offer');if(/^\d+$/.test(offerId||''))await openOffer(Number(offerId));
 
   // Ocultar skeletons de carga
