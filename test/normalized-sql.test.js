@@ -18,7 +18,7 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
   const migration = readFileSync('supabase/migrations/20260930194450_phase1_normalized_storage.sql','utf8');
   const phase2=readFileSync('supabase/migrations/20261001005120_phase2_liveness.sql','utf8');
   const phase3=readFileSync('supabase/migrations/20261001010924_phase3_actions_radar.sql','utf8');
-  const phase3Indexes=readFileSync('supabase/migrations/20261001011033_phase3_foreign_key_indexes.sql','utf8');
+  const phase3Indexes=readFileSync('supabase/migrations/20261001011435_phase3_foreign_key_indexes.sql','utf8');
   const phase3Rollback=readFileSync('supabase/rollback/phase3_actions_radar.sql','utf8');
   const indexesRollback=readFileSync('supabase/rollback/phase3_indexes.sql','utf8');
   const phase3Tests=readFileSync('test/phase3-sql.sql','utf8');

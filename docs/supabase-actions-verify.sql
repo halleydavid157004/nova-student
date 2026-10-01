@@ -1,5 +1,5 @@
 -- Read-only aggregate verification; do not query/export subscribers for public logs.
-select version,name from supabase_migrations.schema_migrations where name='phase3_actions_radar';
+select version,name from supabase_migrations.schema_migrations where name in ('phase3_actions_radar','phase3_foreign_key_indexes');
 select count(*) as runs,count(*) filter(where status='completed') as completed,
  count(*) filter(where status='failed') as failed,max(finished_at) as last_finished_at from nova_private.worker_runs where job_key like 'radar:%' or job_key like 'validate:%';
 select count(*) as active_leases from nova_private.job_leases where leased_until>now();
