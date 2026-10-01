@@ -37,6 +37,7 @@ export function changesBetween(before, after) {
   }
   const oldRuntime = before.runtime || {}, nextRuntime = after.runtime || {};
   for (const key of Object.keys(nextRuntime)) {
+    if(key==='_workerExecution')continue; // Read-only projection from worker_runs/lease.
     const value = runtimeValue(key, nextRuntime[key]);
     const old = runtimeValue(key, oldRuntime[key]);
     if (!same(old, value)) changes.push({collection: 'runtime', patch: {key, value}, expected: {value: old ?? null}});
@@ -108,6 +109,15 @@ export function createNormalizedStorage(rpc) {
       if (index < 0) baseline.alerts.push(structuredClone(row));
       else baseline.alerts[index] = structuredClone(row);
       return row;
+    },
+    claimWorker(jobKey,window,token) {return rpc('nova_claim_worker',{request_key:jobKey,window_key:window,owner_token:token});},
+    assertWorker(token) {return rpc('nova_assert_worker',{owner_token:token});},
+    finishWorker(token,status,summary) {return rpc('nova_finish_worker',{owner_token:token,result_status:status,result_summary:summary});},
+    maintenance() {return rpc('nova_worker_maintenance');},
+    claimDigest(alertId,key) {return rpc('nova_claim_digest',{alert_key:alertId,delivery_key:key});},
+    async finishDigest(key,status,providerId) {
+      const row=await rpc('nova_finish_digest',{delivery_key:key,result_status:status,provider_key:providerId||null});
+      const existing=baseline.alerts.find(a=>a.id===row.id);if(existing)Object.assign(existing,row);return row;
     },
     validationContext(offerId) { return rpc('nova_validation_context',{offer_id:offerId}); },
     configureValidation(days) { return rpc('nova_configure_validation',{days}); },

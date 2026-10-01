@@ -28,7 +28,7 @@ const blank=()=>({offers:[],sources:[],alerts:[],favorites:[],events:[],seq:{off
 export let db=blank();
 let remoteReady=false;
 let dirty=0, persisted=0, pendingSave, writeTask, lastPersistError=null;
-let refreshTask, nativeWrites=0, nativeRevision=0;
+let refreshTask, nativeWrites=0, nativeRevision=0, workerContext=null;
 const normalizedStorage = remoteUrl && storageMode==='normalized' ? createNormalizedStorage(async(name,args={})=>{
   const response=await requestRemote('/rpc/'+name,{method:'POST',body:JSON.stringify(args),headers:{'Content-Type':'application/json'},jsonResponse:true});
   return response;
@@ -168,6 +168,31 @@ export async function persistAlertRow(alert){
   finally{nativeWrites--;nativeRevision++;}
 }
 
+export function setWorkerContext(context){workerContext=context;}
+export async function claimWorker(jobKey,window){
+ const token=crypto.randomUUID();
+ if(normalizedStorage)return normalizedStorage.claimWorker(jobKey,window,token);
+ return {token,run_id:null,attempt:1};
+}
+export async function assertWorker(token){if(normalizedStorage)await normalizedStorage.assertWorker(token);}
+export async function finishWorker(token,status,summary){if(normalizedStorage)await normalizedStorage.finishWorker(token,status,summary);}
+export async function workerMaintenance(){return normalizedStorage?normalizedStorage.maintenance():{capacity_low:false};}
+export async function claimDigest(alert,key){
+ if(normalizedStorage)return normalizedStorage.claimDigest(alert.id,key);
+ if(alert.confirmed!==true)return {skipped:'unconfirmed'};
+ db.runtime||={};const month=new Date().toISOString().slice(0,7),day=new Date().toISOString().slice(0,10);
+ let usage=db.runtime.emailBudget;
+ if(usage?.month!==month)usage=db.runtime.emailBudget={month,day,used:0,daily:0,keys:[]};
+ if(usage.day!==day){usage.day=day;usage.daily=0;usage.keys=[];}
+ if(usage.keys.includes(key))return {skipped:'already_reserved'};
+ if(usage.used>=2700||usage.daily>=90)return {skipped:'quota'};
+ usage.used++;usage.daily++;usage.keys.push(key);save();await flushSave();return {key};
+}
+export async function finishDigest(alert,key,status,providerId){
+ if(normalizedStorage){nativeWrites++;nativeRevision++;try{const row=await normalizedStorage.finishDigest(key,status,providerId);Object.assign(alert,row);}finally{nativeWrites--;nativeRevision++;}}
+ else if(status==='sent'){alert.last_sent_at=new Date().toISOString();save();await flushSave();}
+}
+
 export async function configureValidation(days){if(normalizedStorage)await normalizedStorage.configureValidation(days);}
 export async function validationContext(offer){
   return normalizedStorage ? normalizedStorage.validationContext(offer.id) : {offer,approved_extraction:offer.approved_extraction||null,report_weight:0};
@@ -178,7 +203,7 @@ export async function recordCheck(offer,check){
   try{
     const keys=['status','title','benefit','source_url','consecutive_failures','liveness_status','liveness_verified_at'];
     const expected=Object.fromEntries(keys.map(k=>[k,offer[k]??null]));
-    const row=await normalizedStorage.recordCheck({key:crypto.randomUUID(),offer_id:offer.id,expected,check});
+    const row=await normalizedStorage.recordCheck({key:crypto.randomUUID(),offer_id:offer.id,expected,check,...(workerContext?{worker_run_id:workerContext.run_id,worker_token:workerContext.token}:{})});
     Object.assign(offer,row);
   }catch(error){lastPersistError=error.message;throw error;}
   finally{nativeWrites--;nativeRevision++;}

@@ -12,6 +12,7 @@
  */
 
 import crypto from 'node:crypto';
+import {prioritizedSources} from './scan-priority.js';
 import { db, save, saveSoon, flushSave, id, validationContext, recordCheck } from '../db.js';
 import { extractOfferWithAI, aiEnabled, discoverWithGroq, extractLiveness } from './groq.js';
 import {braveSearch, braveState, braveStatus, radarWindow} from './brave.js';
@@ -195,7 +196,7 @@ export async function scanSource(source,{client=sourceClient,headless,extract=ai
       last_error:r.blocked?`Blocked by ${r.blocked}`:r.status>=400?`HTTP ${r.status}`:r.networkError||null});
     if(r.blocked||[0,403,429,500,502,503,504].includes(r.status)){
       source.failure_count=(source.failure_count||0)+1;
-      source.next_retry_at=new Date(Date.now()+Math.min(24*3600000,3600000*2**Math.min(source.failure_count,5))).toISOString();
+      source.next_retry_at=new Date(Date.now()+Math.max(Number(r.retryAfterMs)||0,Math.min(24*3600000,3600000*2**Math.min(source.failure_count,5)))).toISOString();
     }else{source.failure_count=0;source.next_retry_at=null;}
     for(const offer of db.offers.filter(o=>o.source_url===source.url)){
       const context=await validationContext(offer);
@@ -228,7 +229,7 @@ export async function scanSource(source,{client=sourceClient,headless,extract=ai
                 if (!search.error && !search.skipped && search.results[0]?.url) {
                   aiResult.source_url = search.results[0].url;
                   aiResult.source_domain = new URL(aiResult.source_url).hostname.replace(/^www\./, '');
-                  console.log(`[Nova AI] Live Search found a candidate URL: ${aiResult.source_url}`);
+                  console.log('[Nova AI] Live search returned a candidate URL.');
                 } else { aiResult = null; }
               } catch(e) { aiResult = null; }
             }
@@ -246,7 +247,7 @@ export async function scanSource(source,{client=sourceClient,headless,extract=ai
               };
             }
           } catch (e) {
-            console.error('[Nova AI] Extraction failed, skipping:', e.message);
+            console.error('[Nova AI] Extraction failed; lead skipped.');
           }
         }
       }
@@ -272,7 +273,7 @@ export async function scanSource(source,{client=sourceClient,headless,extract=ai
             details: { url: source.url, category: extracted.category, brand: extracted.brand },
             created_at: now,
           });
-          console.log(`[Discovery] ${aiEnabled() ? '🧠 AI' : '📝 Regex'} offer: ${extracted.title}`);
+          console.log('[Discovery] Unpublished offer candidate recorded.');
         }
       }
     }
@@ -304,13 +305,14 @@ export async function scanAll(options={}) {
   db.runtime ||= {};
   const cursor = Number.isSafeInteger(db.runtime.scanCursor) ? db.runtime.scanCursor : 0;
   const start = cursor % Math.max(1,sources.length);
-  const batch = Array.from({length: Math.min(batchSize,sources.length)},(_,i)=>sources[(start+i)%sources.length]);
+  const batch = options.prioritize ? prioritizedSources(sources,db.offers,{limit:batchSize}) : Array.from({length: Math.min(batchSize,sources.length)},(_,i)=>sources[(start+i)%sources.length]);
   db.runtime.scanCursor = start + batch.length;
   save();
   await flushSave();
   console.log(`[Scan] Checking ${batch.length} of ${sources.length} sources…`);
   try {
     for (let i=0;i<batch.length;i+=4) {
+      await options.beforeBatch?.();
       out.push(...await Promise.all(batch.slice(i,i+4).map(source=>scanSource(source,options))));
       if(i+4<batch.length) await sleep(CONCURRENCY_DELAY);
     }

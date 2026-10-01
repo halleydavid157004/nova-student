@@ -595,11 +595,11 @@ function renderRadarSchedule(worker) {
   const labels = {authentication: 'Revisar conexión', quota: 'Cuota alcanzada', rate_limited: 'Pausa temporal',
     upstream: 'Proveedor no disponible', network: 'Sin respuesta', storage: 'Guardado pendiente', invalid_response: 'Respuesta no válida'};
   let state = !worker.enabled ? 'Pausado' : !brave.enabled ? 'Sin conectar'
-    : brave.running ? 'Buscando oportunidades' : brave.lastError ? labels[brave.lastError] || 'Revisar conexión'
+    : worker.scanning || brave.running ? 'Buscando oportunidades' : brave.lastError ? labels[brave.lastError] || 'Revisar conexión'
     : brave.budget?.remaining === 0 ? 'Límite mensual alcanzado' : 'Programado cada 6 horas';
   const date = value => value && Number.isFinite(Date.parse(value))
     ? new Date(value).toLocaleString('es-CO', {dateStyle: 'short', timeStyle: 'short'}) : 'Pendiente';
-  panel.innerHTML = `<div><span class="radar-schedule-label">BRAVE SEARCH</span><strong>${esc(state)}</strong></div>
+  panel.innerHTML = `<div><span class="radar-schedule-label">${worker.engine==='actions'?'RADAR · GITHUB ACTIONS':'BRAVE SEARCH'}</span><strong>${esc(state)}</strong></div>
     <div><span class="radar-schedule-label">ÚLTIMA BÚSQUEDA</span><strong>${esc(date(brave.lastCompletedAt))}</strong></div>
     <div><span class="radar-schedule-label">PRÓXIMA VENTANA</span><strong>${esc(date(brave.nextRunAt))}</strong></div>
     <p>Hasta 4 búsquedas por ciclo. Las pistas nuevas se revisan antes de aparecer en el catálogo.</p>`;

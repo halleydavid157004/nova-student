@@ -71,7 +71,7 @@ export function robotsPolicy(text, target) {
     const key=line.slice(0,colon).toLowerCase(), value=line.slice(colon+1).trim();
     if(key==='user-agent'){if(rulesStarted)finish();group.agents.push(value.toLowerCase());}
     else if(group.agents.length){rulesStarted=true;if(['allow','disallow'].includes(key)&&value)group.rules.push({allow:key==='allow',path:canonicalPath(value)});
-      if(key==='crawl-delay'&&Number(value)>0)group.delay=Math.min(Number(value)*1000,60000);}
+      if(key==='crawl-delay'&&Number(value)>0)group.delay=Number(value)*1000;}
   }
   finish();
   const specificity=g=>Math.max(0,...g.agents.filter(a=>a!=='*'&&'novastudentradar'.includes(a)).map(a=>a.length));
@@ -93,10 +93,9 @@ export function createSourceClient({request=publicRequest,wait=sleep}={}) {
       await wait(Math.max(0,(last.get(origin)||0)+delay-Date.now()));
       for(let attempt=0;attempt<2;attempt++) {
         last.set(origin,Date.now());const result=await request(url);
-        if(![429,502,503,504].includes(result.status)||attempt===1)return result;
         const raw=result.headers?.['retry-after'];const numeric=Number(raw);
         const retry=raw && (Number.isFinite(numeric)?numeric*1000:Date.parse(raw)-Date.now());
-        if(retry>30000)return {...result,retryAfterMs:retry};
+        if(![429,502,503,504].includes(result.status)||attempt===1||retry>30000)return {...result,...(retry>0?{retryAfterMs:retry}:{})};
         await wait(Math.max(delay,1000*2**attempt,retry||0));
       }
     });
@@ -129,6 +128,7 @@ export function createSourceClient({request=publicRequest,wait=sleep}={}) {
       for(let n=0;n<=5;n++) {
         const rules=await policy(url);
         if(!rules.allowed)return {status:0,body:'',url,redirects,blocked:rules.reason||'robots'};
+        if(rules.delay>60000)return {status:0,body:'',url,redirects,blocked:'crawl_delay_long',retryAfterMs:rules.delay};
         const response=await paced(url,rules.delay);
         if([301,302,303,307,308].includes(response.status)&&response.headers?.location){const next=sourceUrl(new URL(response.headers.location,url)).href;redirects.push({from:url,to:next,status:response.status});url=next;continue;}
         return {...response,url,redirects};

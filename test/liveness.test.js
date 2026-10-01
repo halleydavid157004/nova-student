@@ -57,3 +57,11 @@ test('temporal decay and bounded reports do not invent expired status',()=>{
   const result=assessment(offer(),page('active'),extraction(),{now,reports:99});
   assert.equal(result.score,85);assert.equal(result.state,'needs_review');assert.equal(result.patch.status,'active');assert.equal(result.patch.consecutive_failures,0);
 });
+
+test('verification translations and unknown geography do not invent material changes',()=>{
+ const now=Date.now();const offer={status:'active',source_url:'https://example.org/students',verification:'Educational email',verified_at:new Date(now).toISOString(),approved_extraction:{countries:['GLOBAL']}};
+ const extraction={benefit:'Free student plan',value:null,requirements:[],verification:'Correo educativo',countries:['UNKNOWN'],expires_at:null,evidence:'Free student plan with educational email',available:true};
+ const response={status:200,url:offer.source_url,body:'<main>Free student plan with educational email. University students can use this benefit with their school email address for studying cloud development.</main>'};
+ const same=assessment(offer,response,extraction,{now});assert.equal(same.state,'active');assert.equal(same.success,true);
+ const changed=assessment(offer,response,{...extraction,verification:'SheerID'},{now});assert.equal(changed.state,'needs_review');assert.ok(changed.signals.material.includes('verification_changed'));assert.equal(changed.failure,false);
+});

@@ -13,6 +13,16 @@ function benefitSignature(value){
   for(const [kind,pattern] of Object.entries({free:/\bfree\b|\bgratis\b|\bgratuit/,discount:/discount|descuento/,credits:/\bcredits?\b|\bcreditos?\b/,license:/licen[cs]/,storage:/storage|almacenamiento/}))if(pattern.test(text))kinds.push(kind);
   return {kinds,numbers:text.match(/\d+(?:[.,]\d+)?/g)||[]};
 }
+function verificationKind(value){
+ const text=fold(value);
+ if(/github/.test(text))return 'github';
+ if(/sheer\s*id/.test(text))return 'sheerid';
+ if(/unidays/.test(text))return 'unidays';
+ if(/student\s*beans/.test(text))return 'studentbeans';
+ if(/email|e-mail|correo|\.edu\b/.test(text))return 'email';
+ if(/matricula|enrollment|enrolment|student card|carne/.test(text))return 'enrollment';
+ return null;
+}
 export function htmlText(html) {
   return String(html).replace(/<(script|style|nav|header|footer)\b[^>]*>[\s\S]*?<\/\1>/gi,' ')
     .replace(/<[^>]*>/g,' ').replace(/&nbsp;|&#160;/g,' ').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;/g,"'")
@@ -72,8 +82,8 @@ export function assessment(offer,response,extraction,{now=Date.now(),reports=0,e
         const old=benefitSignature(approved.benefit),next=benefitSignature(extraction.benefit+' '+(extraction.value||''));
         if(old.kinds.some(kind=>!next.kinds.includes(kind))||old.numbers.some(number=>!next.numbers.includes(number))){material.push('benefit_changed');score-=30;}
       }
-      if(offer.verification&&extraction.verification&&fold(offer.verification)!==fold(extraction.verification)){material.push('verification_changed');score-=20;}
-      if(approved?.countries?.length && JSON.stringify([...approved.countries].sort())!==JSON.stringify([...extraction.countries].sort())){material.push('countries_changed');score-=20;}
+      if(offer.verification&&extraction.verification&&fold(offer.verification)!==fold(extraction.verification)&&!(verificationKind(offer.verification)&&verificationKind(offer.verification)===verificationKind(extraction.verification))){material.push('verification_changed');score-=20;}
+      if(approved?.countries?.length && extraction.countries.length && !extraction.countries.includes('UNKNOWN') && JSON.stringify([...approved.countries].sort())!==JSON.stringify([...extraction.countries].sort())){material.push('countries_changed');score-=20;}
     }
     if(material.length)state='needs_review';
   }

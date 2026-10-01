@@ -1,0 +1,31 @@
+import test,{after} from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+const dir=mkdtempSync(path.join(tmpdir(),'nova-digest-'));
+Object.assign(process.env,{DATABASE_PATH:path.join(dir,'state.json'),SUPABASE_URL:'',SUPABASE_SECRET_KEY:''});
+const {db}=await import('../src/db.js');
+const {sendDueDigests,digestPeriod}=await import('../src/services/email.js');
+after(()=>rmSync(dir,{recursive:true,force:true}));
+test('daily/weekly due periods catch delayed runs after 08:00 and respect timezone',()=>{
+ const alert={frequency:'daily',timezone:'America/Bogota'};
+ assert.equal(digestPeriod(alert,new Date('2026-09-28T12:00Z')),null);
+ assert.equal(digestPeriod(alert,new Date('2026-09-28T18:00Z')),'daily:2026-09-28');
+ assert.equal(digestPeriod({...alert,frequency:'weekly'},new Date('2026-09-28T18:00Z')),'weekly:2026-09-28');
+ assert.equal(digestPeriod({...alert,frequency:'weekly'},new Date('2026-09-29T18:00Z')),null);
+});
+test('durable reservations stop unconfirmed, duplicate and uncertain sends without leaking recipients',async()=>{
+ db.offers.push({id:1,title:'Benefit',benefit:'Free',status:'active',official:true,source_url:'https://example.invalid/student',updated_at:new Date().toISOString(),verified_at:new Date().toISOString()});
+ const alert={id:1,email:'fixture@example.invalid',enabled:true,frequency:'daily',timezone:'America/Bogota'};db.alerts.push(alert);
+ const now=new Date();now.setUTCHours(18);let sent=0;
+ const send=async message=>{sent++;assert.match(message.idempotencyKey,/^digest\/[a-f0-9]{64}$/);return {id:'fixture-provider'}};
+ assert.equal((await sendDueDigests({force:true,now,send}))[0].skipped,'unconfirmed');assert.equal(sent,0);
+ alert.confirmed=true;
+ const result=await sendDueDigests({force:true,now,send});assert.equal(sent,1);assert.equal(result[0].sent,true);assert.ok(!JSON.stringify(result).includes(alert.email));
+ assert.equal((await sendDueDigests({force:true,now,send}))[0].skipped,'already_reserved');assert.equal(sent,1);
+ alert.id=2;const failed=await sendDueDigests({force:true,now,send:async()=>{sent++;throw new Error('provider secret response')}});
+ assert.equal(failed[0].error,'delivery_uncertain');assert.ok(!JSON.stringify(failed).includes('secret'));
+ assert.equal((await sendDueDigests({force:true,now,send}))[0].skipped,'already_reserved');assert.equal(sent,2);
+ db.runtime.emailBudget.daily=90;alert.id=3;assert.equal((await sendDueDigests({force:true,now,send}))[0].skipped,'quota');
+});

@@ -1,20 +1,57 @@
 name: Radar cada 6 horas
-
 on:
   schedule:
     - cron: '17 */6 * * *'
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/radar-schedule.yml', 'docs/supabase-radar-cron.sql']
-
-permissions: {}
+permissions:
+  contents: read
 concurrency:
-  group: radar-six-hour
+  group: nova-radar-writer
   cancel-in-progress: false
-
 jobs:
-  scheduled-discovery:
+  radar:
+    # Explicit activation prevents a half-configured production switch.
+    if: github.event.repository.private == false && vars.RADAR_ACTIONS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check private configuration before installing browsers
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+        run: test -n "$SUPABASE_URL" && test -n "$SUPABASE_SECRET_KEY" && test -n "$GROQ_API_KEY" && test -n "$BRAVE_SEARCH_API_KEY"
+      - run: npm ci --prefix tools/browser
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: chromium-${{ runner.os }}-${{ hashFiles('tools/browser/package-lock.json') }}
+      - run: npx --prefix tools/browser playwright install --with-deps chromium
+      - name: Discovery, validation, catalog and digests directly with Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM: ${{ secrets.RESEND_FROM }}
+          LIVENESS_MAX_AGE_DAYS: ${{ vars.LIVENESS_MAX_AGE_DAYS || '14' }}
+          BRAVE_MONTHLY_LIMIT: ${{ vars.BRAVE_MONTHLY_LIMIT || '600' }}
+          SCAN_BATCH_SIZE: '30'
+          LIVENESS_AI_CALLS_PER_CYCLE: '12'
+          RADAR_ENGINE: actions
+          WORKER_ENABLED: 'false'
+        run: node tools/browser/radar.js
+      # No uploads of state or contacts. Phase 4 will publish only publicCatalog().
+
+  # Transitional wake-up is removed when the owner activates Actions.
+  legacy-wake:
+    if: github.event.repository.private == false && vars.RADAR_ACTIONS_ENABLED != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
