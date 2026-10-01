@@ -65,7 +65,10 @@ async function requestRemote(query='',options={}){
     redirect:'error',
   });
   if(!response.ok)throw new Error(`Supabase storage HTTP ${response.status}`);
-  return options.method && !options.jsonResponse ? null : response.json();
+  // PostgREST returns 204 for RPCs declared RETURNS void.
+  // Keep parsing other JSON responses so invalid data still fails closed.
+  if(response.status===204 || (options.method && !options.jsonResponse))return null;
+  return response.json();
 }
 
 export async function migrate(){

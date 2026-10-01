@@ -22,7 +22,7 @@ test('HTTP API boots from normalized RPCs, preserves public gating and saves ale
       const args=JSON.parse(options.body||'{}');
       if(name==='nova_activate_rows'||name==='nova_load_rows')return Response.json(remote);
       if(name==='nova_reserve_ids')return Response.json(Object.fromEntries(['offers','sources','events','alerts'].map(k=>[k,{next:1000,last:1999}])));
-      if(name==='nova_configure_validation')return Response.json(null);
+      if(name==='nova_configure_validation')return new Response(null,{status:204});
       if(name==='nova_submit_report')return Response.json({ok:true});
       if(name==='nova_create_alert'){
         remote.alerts.push(args.input);
