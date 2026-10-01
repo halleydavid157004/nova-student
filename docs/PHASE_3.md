@@ -58,3 +58,7 @@ El advisor detectó dos FK nuevas sin índice: se añadió la migración `202610
 La revisión de compatibilidad evita falsas diferencias entre “Educational email” y “correo educativo” mediante método normalizado; países UNKNOWN/ausentes no se interpretan como un cambio confirmado. Un cambio explícito de email a SheerID sí va a revisión, sin sumar fallo de expiración. Se preservan los campos aprobados.
 
 Transición comprobada: `nova-student-six-hour-wake` sigue activo en Supabase mientras Render ejecuta 2.2.0. Después del primer ciclo productivo verde de Actions se desactivará ese cron con `cron.alter_job(1,active:=false)`, conservando su definición para rollback. No se detiene antes de tener el motor nuevo funcionando. La UI confirma alerta guardada y no promete envío sin suscripción confirmada.
+
+## Corrección de arranque (2026-10-01)
+
+El despliegue de `0422457` compiló correctamente pero falló al leer como JSON la respuesta HTTP 204 de `nova_configure_validation` (`RETURNS void`). El cliente acepta 204 sin cuerpo y mantiene la validación JSON para el resto de respuestas. La prueba HTTP de almacenamiento normalizado reproduce el 204 real y comprueba arranque, health, catálogo, reportes y altas de alertas. No cambia el esquema ni requiere nuevas variables; rollback: revertir el commit de esta corrección.
