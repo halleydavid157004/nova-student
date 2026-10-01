@@ -58,6 +58,7 @@ async function performCycle({sourceOptions,force,validationOnly,onCatalog}) {
     state.lastCompletedAt = new Date().toISOString();
     state.lastScanResult = {
       cycle: state.scanCount, timestamp: state.lastCompletedAt,
+      retention:{alertsRemoved:capacity.alerts_removed||0,subscribersRemoved:capacity.subscribers_removed||0},
       elapsed: `${((Date.now() - startedAt) / 1000).toFixed(1)}s`,
       discovery: {
         newSources: discovery.discovered || 0,

@@ -56,3 +56,12 @@ test('an old preview response cannot overwrite a newly opened unsubscribe link',
  complete({ok:true,json:async()=>({query:'Old private query',country:'CO',frequency:'daily'})});await old;
  assert.equal(dom.window.document.getElementById('confirm').hidden,true);assert.equal(dom.window.document.getElementById('preview').textContent,'');assert.match(dom.window.document.getElementById('status').textContent,/baja/);dom.window.close();
 });
+
+test('erasure is explicit, clears private searches and resets on another link',async()=>{
+ const dom=new JSDOM(readFileSync('public/preferences.html','utf8'),{url:'https://example.invalid/preferences.html#preferences=first'}),calls=[];
+ const opts={location:dom.window.location,history:dom.window.history,fetcher:async(url,options)=>{calls.push({url,body:JSON.parse(options.body)});return {ok:true,json:async()=>({status:'confirmed',alerts:[{id:1,query:'Private search',frequency:'daily',enabled:true,confirmed:true}]})};}};
+ await initPreferences(dom.window.document,opts);const form=dom.window.document.getElementById('eraseForm');assert.equal(form.hidden,false);
+ form.dispatchEvent(new dom.window.Event('submit',{cancelable:true}));await new Promise(r=>setTimeout(r,0));assert.equal(calls.length,1);
+ dom.window.document.getElementById('eraseConsent').checked=true;form.dispatchEvent(new dom.window.Event('submit',{cancelable:true}));await new Promise(r=>setTimeout(r,0));assert.equal(calls.length,2);assert.match(calls[1].url,/erase$/);assert.equal(calls[1].body.confirm,true);assert.equal(form.hidden,true);assert.equal(dom.window.document.querySelector('#alerts form'),null);
+ dom.window.location.hash='unsubscribe=other';await initPreferences(dom.window.document,opts);assert.equal(form.hidden,true);assert.equal(dom.window.document.getElementById('eraseConsent').checked,false);dom.window.close();
+});

@@ -193,4 +193,4 @@ Hot, Imperdible y Por vencer usan criterios explícitos de revisión, gratuidad 
 
 ### Consentimiento y correo
 
-Las alertas guardadas requieren autorización separada y confirmación por alerta para enviar correo. Preferencias, baja y presupuesto compartido están preparados; el remitente y la identidad del responsable siguen pendientes de configurar. Consulta [fase 7 y activación](docs/PHASE_7.md).
+Las alertas guardadas requieren autorización separada y confirmación por alerta para enviar correo. Preferencias, baja y presupuesto compartido están preparados; el remitente y la identidad del responsable siguen pendientes de configurar. Consulta [fase 7 y activación](docs/PHASE_7.md) y [supresión de suscripciones y conservación](docs/PHASE_7_ERASURE.md).

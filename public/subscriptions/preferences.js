@@ -3,9 +3,10 @@ export async function initPreferences(doc,{location=globalThis.location,history=
  const generation=Symbol();activePages.set(doc,generation);const current=()=>activePages.get(doc)===generation;
  const params=new URLSearchParams(location.hash.slice(1));const purpose=['confirm','unsubscribe','preferences'].find(k=>params.has(k)),token=purpose?params.get(purpose):null;
  history.replaceState(null,'',location.pathname); // Before any API call or other resource request.
+ const eraseForm=doc.getElementById('eraseForm'),eraseButton=doc.getElementById('erase');eraseForm.hidden=true;eraseButton.disabled=false;doc.getElementById('eraseConsent').checked=false;
  const status=doc.getElementById('status'),confirm=doc.getElementById('confirm'),unsubscribe=doc.getElementById('unsubscribe'),list=doc.getElementById('alerts');
  confirm.hidden=true;unsubscribe.hidden=true;confirm.disabled=false;unsubscribe.disabled=false;list.replaceChildren();doc.getElementById('preview').textContent='';
- const post=async(action,extra={})=>{const r=await fetcher('/api/subscriptions/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,...extra}),credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(15000)});if(!r.ok)throw new Error('Enlace inválido, vencido o servicio no disponible. Solicita uno nuevo o usa el contacto del aviso.');const data=await r.json();if(!current())throw new Error('Enlace sustituido');return data;};
+ const post=async(action,extra={})=>{if(!current())throw new Error('Enlace sustituido');const r=await fetcher('/api/subscriptions/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,...extra}),credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(15000)});if(!r.ok)throw new Error('Enlace inválido, vencido o servicio no disponible. Solicita uno nuevo o usa el contacto del aviso.');const data=await r.json();if(!current())throw new Error('Enlace sustituido');return data;};
  if(!token||token.length>1024){status.textContent='Abre el enlace privado recibido por correo.';return;}
  const act=(button,action,done)=>{button.onclick=async()=>{button.disabled=true;try{await post(action);status.textContent=done;button.hidden=true;}catch(e){if(current()){status.textContent=e.message;button.disabled=false;}}};};
  if(purpose==='confirm'){
@@ -14,7 +15,9 @@ export async function initPreferences(doc,{location=globalThis.location,history=
   unsubscribe.hidden=false;status.textContent='Confirma la baja de todos los correos de Nova Student.';act(unsubscribe,'unsubscribe','Baja registrada. No se programarán nuevos digests.');
  }else{
   try{
-   const data=await post('preferences');status.textContent=data.status==='confirmed'?'Tus alertas confirmadas.':'Tu suscripción no está activa.';
+   const data=await post('preferences');
+   eraseForm.hidden=false;eraseForm.onsubmit=async e=>{e.preventDefault();if(!doc.getElementById('eraseConsent').checked)return;eraseButton.disabled=true;try{await post('erase',{confirm:true});list.replaceChildren();eraseForm.hidden=true;status.textContent='Tus datos de correo fueron eliminados. Los enlaces anteriores ya no funcionan.';}catch(err){if(current()){status.textContent=err.message;eraseButton.disabled=false;}}};
+   status.textContent=data.status==='confirmed'?'Tus alertas confirmadas.':'Tu suscripción no está activa.';
    for(const a of data.alerts){
     const row=doc.createElement('form'),title=doc.createElement('h2');title.textContent=a.query||'Todos los beneficios';row.append(title);
     const label=doc.createElement('label'),toggle=doc.createElement('input');toggle.type='checkbox';toggle.checked=a.enabled&&a.confirmed;toggle.disabled=!a.confirmed||data.status!=='confirmed';label.append(toggle,doc.createTextNode(' Recibir esta alerta'));row.append(label);
