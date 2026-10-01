@@ -563,11 +563,13 @@ $('#alertForm').addEventListener('submit', async (e) => {
       body: JSON.stringify(data)
     });
 
-    status.textContent = result.deliveryConfigured === false
+    status.textContent = !data.consent
+      ? '✓ Alerta guardada sin activar correo. Puedes solicitar confirmación autorizando el envío.'
+      : result.deliveryConfigured === false
       ? '✓ Alerta guardada. Los envíos por correo están pendientes de configuración.'
       : '✓ Alerta guardada. Si corresponde, recibirás un enlace para confirmar. Las solicitudes repetidas se limitan a una por día.';
     status.className = 'success';
-    toast(result.deliveryConfigured === false ? 'Alerta guardada; correo pendiente' : 'Alerta creada ✓', 'success');
+    toast(!data.consent ? 'Búsqueda guardada sin correo' : result.deliveryConfigured === false ? 'Alerta guardada; correo pendiente' : 'Solicitud de alerta guardada', 'success');
     setTimeout(() => closeAlertModal(), 1400);
   } catch (err) {
     status.textContent = '✗ ' + err.message;
