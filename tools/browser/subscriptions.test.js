@@ -5,7 +5,7 @@ import {chromium} from 'playwright';
 test('browser: confirmation requires a click, preferences and unsubscribe clear private URL tokens',{timeout:30000},async()=>{
  const browser=await chromium.launch();
  try{
-  const context=await browser.newContext(),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));let confirmed=0,withdrawn=0,updated=null;
+  const context=await browser.newContext(),page=await context.newPage(),errors=[];page.setDefaultTimeout(7000);page.on('pageerror',e=>errors.push(e.message));let confirmed=0,withdrawn=0,updated=null;
   const files=new Map(['preferences.html','account.css','subscriptions/preferences.js'].map(name=>['/'+name,readFileSync(new URL('../../public/'+name,import.meta.url),'utf8')]));
   await context.route('**/*',async route=>{
    const request=route.request(),url=new URL(request.url());assert.equal(url.hash,'');

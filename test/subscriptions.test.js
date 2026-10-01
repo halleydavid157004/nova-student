@@ -39,3 +39,12 @@ test('preferences updates owned IDs through safe DOM and never executes stored q
 test('privacy identity is rendered as text and a contact link',()=>{
  const dom=new JSDOM(readFileSync('public/privacy.html','utf8'));renderPrivacy(dom.window.document,{ready:true,controller:'Fixture <script>',contact:'privacy@example.invalid'});assert.equal(dom.window.document.querySelector('#controller script'),null);assert.equal(dom.window.document.querySelector('#contact a').textContent,'privacy@example.invalid');dom.window.close();
 });
+
+test('reopening another email link in the same document replaces prior handlers and state',async()=>{
+ const dom=new JSDOM(readFileSync('public/preferences.html','utf8'),{url:'https://example.invalid/preferences.html#confirm=first'}),calls=[];
+ const options={location:dom.window.location,history:dom.window.history,fetcher:async(url,request)=>{calls.push(JSON.parse(request.body));return {ok:true,json:async()=>({query:'Fixture',country:'CO',frequency:'daily'})};}};
+ await initPreferences(dom.window.document,options);
+ dom.window.location.hash='unsubscribe=second';await initPreferences(dom.window.document,options);
+ assert.equal(dom.window.document.getElementById('confirm').hidden,true);
+ dom.window.document.getElementById('unsubscribe').click();await new Promise(r=>setTimeout(r,0));assert.equal(calls.length,2);assert.equal(calls[1].token,'second');dom.window.close();
+});

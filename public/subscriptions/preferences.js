@@ -2,9 +2,10 @@ export async function initPreferences(doc,{location=globalThis.location,history=
  const params=new URLSearchParams(location.hash.slice(1));const purpose=['confirm','unsubscribe','preferences'].find(k=>params.has(k)),token=purpose?params.get(purpose):null;
  history.replaceState(null,'',location.pathname); // Before any API call or other resource request.
  const status=doc.getElementById('status'),confirm=doc.getElementById('confirm'),unsubscribe=doc.getElementById('unsubscribe'),list=doc.getElementById('alerts');
+ confirm.hidden=true;unsubscribe.hidden=true;confirm.disabled=false;unsubscribe.disabled=false;list.replaceChildren();doc.getElementById('preview').textContent='';
  const post=async(action,extra={})=>{const r=await fetcher('/api/subscriptions/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,...extra}),credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(15000)});if(!r.ok)throw new Error('Enlace inválido, vencido o servicio no disponible. Solicita uno nuevo o usa el contacto del aviso.');return r.json();};
  if(!token||token.length>1024){status.textContent='Abre el enlace privado recibido por correo.';return;}
- const act=(button,action,done)=>button.addEventListener('click',async()=>{button.disabled=true;try{await post(action);status.textContent=done;button.hidden=true;}catch(e){status.textContent=e.message;button.disabled=false;}});
+ const act=(button,action,done)=>{button.onclick=async()=>{button.disabled=true;try{await post(action);status.textContent=done;button.hidden=true;}catch(e){status.textContent=e.message;button.disabled=false;}};};
  if(purpose==='confirm'){
   try{const a=await post('preview');doc.getElementById('preview').textContent=`Alerta: ${a.query||'Todos los beneficios'} · ${a.country} · ${a.frequency}`;confirm.hidden=false;status.textContent='Confirma solo si solicitaste esta alerta.';act(confirm,'confirm','Alerta confirmada. Los futuros digests respetarán tu frecuencia y el presupuesto disponible.');}catch(e){status.textContent=e.message;}
  }else if(purpose==='unsubscribe'){
@@ -22,4 +23,4 @@ export async function initPreferences(doc,{location=globalThis.location,history=
   }catch(e){status.textContent=e.message;}
  }
 }
-if(typeof document!=='undefined')initPreferences(document);
+if(typeof document!=='undefined'){initPreferences(document);globalThis.addEventListener('hashchange',()=>initPreferences(document));}
