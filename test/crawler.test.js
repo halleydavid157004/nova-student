@@ -35,3 +35,11 @@ test('an extracted lead remains pending until reviewed',()=>{
   assert.equal(lead.status,'pending');
   assert.equal(lead.official,false);
 });
+
+test('source backoff never shortens a long provider Retry-After',async()=>{
+ const source={id:99,name:'Fixture',url:'https://fixture.example/student'};
+ const {scanSource}=await import('../src/services/crawler.js');
+ const {mkdirSync}=await import('node:fs');mkdirSync(dir,{recursive:true});
+ const before=Date.now();await scanSource(source,{client:{fetch:async()=>({status:503,body:'',url:source.url,retryAfterMs:3*86400000})}});
+ assert.ok(Date.parse(source.next_retry_at)>=before+3*86400000);const {flushSave}=await import('../src/db.js');await flushSave();rmSync(dir,{recursive:true,force:true});
+});

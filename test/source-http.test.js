@@ -32,3 +32,8 @@ test('robots network errors fail closed; retry backoff honors long Retry-After',
   }});
   assert.equal((await retry.fetch('https://vendor.example/students')).status,503);assert.equal(attempts,1);assert.ok(waits.every(n=>n<=30000));
 });
+
+test('crawl-delay above one minute is deferred without lowering the source requirement',async()=>{
+ let hits=0;const client=createSourceClient({wait:async()=>{},request:async url=>{hits++;return {status:200,body:'User-agent: *\nCrawl-delay: 120\nAllow: /'}}});
+ const result=await client.fetch('https://vendor.example/student');assert.equal(result.blocked,'crawl_delay_long');assert.equal(result.retryAfterMs,120000);assert.equal(hits,1);
+});
