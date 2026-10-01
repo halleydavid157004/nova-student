@@ -42,6 +42,9 @@ jobs:
           BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM: ${{ secrets.RESEND_FROM }}
+          EMAIL_TOKEN_SECRET: ${{ secrets.EMAIL_TOKEN_SECRET }}
+          PRIVACY_CONTROLLER: ${{ vars.PRIVACY_CONTROLLER }}
+          PRIVACY_CONTACT_EMAIL: ${{ vars.PRIVACY_CONTACT_EMAIL }}
           LIVENESS_MAX_AGE_DAYS: ${{ vars.LIVENESS_MAX_AGE_DAYS || '14' }}
           BRAVE_MONTHLY_LIMIT: ${{ vars.BRAVE_MONTHLY_LIMIT || '600' }}
           SCAN_BATCH_SIZE: '30'

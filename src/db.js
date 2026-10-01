@@ -230,3 +230,12 @@ export function id(kind){
 export function reset(next=blank()){db=next;save();}
 export function event(type,title,details={},extra={}){const x={id:id('events'),type,title,details,created_at:new Date().toISOString(),...extra};db.events.push(x);save();return x;}
 if(!remoteUrl)load();
+
+// Subscription data never travels through public catalog exports.
+export async function emailConsent(op,input={}){
+ if(!normalizedStorage)throw Object.assign(new Error('Normalized subscriptions unavailable'),{status:503});
+ if(!['request','queue','claim','finish','context','confirm','preview','unsubscribe','preferences','update'].includes(op))throw new Error('Invalid email operation');
+ nativeWrites++;nativeRevision++;
+ try{return await requestRemote('/rpc/nova_email_consent',{method:'POST',body:JSON.stringify({op,input}),headers:{'Content-Type':'application/json'},jsonResponse:true});}
+ finally{nativeWrites--;nativeRevision++;}
+}
