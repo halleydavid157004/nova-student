@@ -14,7 +14,7 @@ test('Windows launcher creates .env, respects PORT and detects an existing healt
   const port = listener.address().port;
   await new Promise(resolve => listener.close(resolve));
   const dir = mkdtempSync(path.join(tmpdir(), 'nova-launcher-'));
-  for (const file of ['server.js', 'src', 'package.json', '.env.example', 'ABRIR_NOVA_STUDENT.cmd']) {
+  for (const file of ['server.js', 'src', 'public', 'package.json', '.env.example', 'ABRIR_NOVA_STUDENT.cmd']) {
     cpSync(file, path.join(dir, file), {recursive: true});
   }
   const env = {...process.env, PORT: String(port), DATABASE_PATH: path.join(dir, 'db.json'),
