@@ -73,7 +73,8 @@ test('interfaz: filtros, detalle, favoritos, radar, alerta e IA',async()=>{
     assert.equal($('#alertModal').hasAttribute('hidden'),false);
     $('#alertEmail').value='test@example.com';
     $('#alertForm').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})); await sleep(20);
-    assert.match($('#alertStatus').textContent,/activada/);
+    assert.match($('#alertStatus').textContent,/guardada/);
+    assert.match($('#alertStatus').textContent,/suscripción confirmada/);
     $('#nova-ai-fab').click();
     $('#nova-ai-input').value='¿Qué ofrece Notion?';
     $('#nova-ai-form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})); await sleep(20);

@@ -534,7 +534,7 @@ $('#alertForm').addEventListener('submit', async (e) => {
   const status = $('#alertStatus');
 
   btn.disabled = true;
-  btn.textContent = 'Activando…';
+  btn.textContent = 'Guardando…';
 
   const data = Object.fromEntries(new FormData(e.currentTarget));
   data.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Bogota';
@@ -548,7 +548,7 @@ $('#alertForm').addEventListener('submit', async (e) => {
 
     status.textContent = result.deliveryConfigured === false
       ? '✓ Alerta guardada. Los envíos por correo están pendientes de configuración.'
-      : '✓ Alerta activada correctamente';
+      : '✓ Alerta guardada. El correo requiere una suscripción confirmada.';
     status.className = 'success';
     toast(result.deliveryConfigured === false ? 'Alerta guardada; correo pendiente' : 'Alerta creada ✓', 'success');
     setTimeout(() => closeAlertModal(), 1400);
@@ -557,7 +557,7 @@ $('#alertForm').addEventListener('submit', async (e) => {
     status.className = '';
   } finally {
     btn.disabled = false;
-    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Activar alerta`;
+    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Guardar alerta`;
   }
 });
 
