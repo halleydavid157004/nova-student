@@ -11,8 +11,8 @@ export function offerKeys(o){
  const countries=[...new Set(Array.isArray(o.countries)?o.countries:[])].sort();
  const variant=JSON.stringify([countries,fold(o.benefit),fold(o.offer_type),fold(o.verification)]);
  const url=canonicalSource(o.source_url),keys=[];
- if(url&&fold(o.benefit))keys.push('url:'+url+variant);
- if(fold(o.brand)&&fold(o.title)&&fold(o.benefit))keys.push('offer:'+JSON.stringify([fold(o.brand),fold(o.title),variant]));
+ if(url&&(fold(o.benefit)||fold(o.title)))keys.push('url:'+url+variant+(fold(o.benefit)?'':fold(o.title)));
+ if(fold(o.brand)&&fold(o.title)&&fold(o.benefit))keys.push('offer:'+JSON.stringify([fold(o.brand),fold(o.title),variant,url?new URL(url).search:'']));
  return keys;
 }
 export function sameOffer(a,b){const keys=new Set(offerKeys(a));return offerKeys(b).some(k=>keys.has(k));}

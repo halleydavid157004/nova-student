@@ -22,6 +22,8 @@ test('duplicates are suppressed in search and export, retaining reviewed evidenc
 test('different benefits, countries and verification methods remain independent',()=>{
  const variants=[a,{...a,id:2,benefit:'200 créditos'},{...a,id:3,countries:['US']},{...a,id:4,verification:'Educational email'}];
  assert.equal(uniqueOffers(variants).length,4);
+ const plans=[{...a,source_url:'https://example.com/student?plan=pro'},{...a,id:9,source_url:'https://example.com/student?plan=basic'}];
+ assert.equal(uniqueOffers(plans).length,2);assert.equal(publicCatalog(plans).offers.length,2);assert.match(publicCatalog(plans).offers[0].source_url,/plan=pro/);
  assert.equal(sameOffer(a,{...a,source_url:'https://example.com/other',title:'Otro plan',benefit:'Licencia gratis'}),false);
  assert.equal(uniqueOffers([{id:1},{id:2}]).length,2);
 });

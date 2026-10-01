@@ -6,7 +6,7 @@ Actualización: 2026-10-01. PR complementario a fases 3–5.
 
 Identidad compartida en `public/search/identity.js`, aplicada después del filtro de publicación en búsqueda, extensión y exportación. Quita fragmentos y parámetros conocidos de seguimiento; conserva parámetros de país, plan y otros significativos. Compara fuente canónica y variante (beneficio, países, tipo y verificación), o marca + título + variante para enlaces alternativos. Prefiere revisión humana, verificación reciente y score; desempata por ID. No borra filas ni historial. No agrupa por dominio: una marca puede ofrecer varios beneficios.
 
-Las coincidencias semánticas con textos diferentes necesitan revisión humana: no prometemos detectar cualquier duplicado posible. Estos criterios garantizan una sola ficha por identidad reconocida en cada resultado. La ficha individual histórica conserva su URL e ID. El catálogo y la búsqueda no publican candidatos sin aprobación ni ofertas caducadas.
+Las coincidencias semánticas con textos diferentes necesitan revisión humana: no prometemos detectar cualquier duplicado posible. Estos criterios garantizan una sola ficha por identidad reconocida en cada resultado. La exportación conserva parámetros públicos de país/región ISO y nombres de plan reconocidos; elimina parámetros privados o desconocidos. La ficha individual histórica conserva su URL e ID. El catálogo y la búsqueda no publican candidatos sin aprobación ni ofertas caducadas.
 
 ## Países y acceso
 
