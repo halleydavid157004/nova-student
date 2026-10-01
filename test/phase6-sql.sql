@@ -1,0 +1,51 @@
+reset role;
+insert into auth.users(id) values('11111111-1111-4111-8111-111111111111'),('22222222-2222-4222-8222-222222222222');
+begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+select set_config('request.jwt.claims','{"is_anonymous":false}',true);
+insert into public.user_profiles(user_id,country,career) values(auth.uid(),'CO','Engineering');
+insert into public.user_favorites(user_id,offer_id) values(auth.uid(),12);
+insert into public.user_favorites(user_id,offer_id) values(auth.uid(),12) on conflict do nothing;
+insert into public.user_saved_searches(user_id,query,country) values(auth.uid(),'cloud','CO');
+do $$ begin
+ if (select count(*) from public.user_favorites)<>1 then raise exception 'Duplicate favorite';end if;
+ begin insert into public.user_profiles(user_id) values('22222222-2222-4222-8222-222222222222');raise exception 'Expected owner denial';exception when insufficient_privilege then null;end;
+ begin update public.user_profiles set user_id='22222222-2222-4222-8222-222222222222';raise exception 'Expected reassignment denial';exception when insufficient_privilege then null;end;
+ begin insert into public.user_favorites(user_id,offer_id) values(auth.uid(),13);raise exception 'Hidden lead imported';exception when insufficient_privilege then null;end;
+ begin insert into public.user_favorites(user_id,offer_id) values(auth.uid(),15);raise exception 'Expired offer imported';exception when insufficient_privilege then null;end;
+ begin update public.user_profiles set country='ZZ';raise exception 'Invalid country';exception when check_violation then null;end;
+end $$;
+commit;
+begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+select set_config('request.jwt.claims','{"is_anonymous":false}',true);
+do $$ begin
+ if (select count(*) from public.user_profiles)<>0 or (select count(*) from public.user_favorites)<>0 or (select count(*) from public.user_saved_searches)<>0 then raise exception 'Cross-user leak';end if;
+ delete from public.user_favorites where user_id='11111111-1111-4111-8111-111111111111';
+end $$;
+insert into public.user_profiles(user_id) values(auth.uid());
+insert into public.user_saved_searches(user_id,query) select auth.uid(),'fixture '||n from generate_series(1,50) n;
+do $$ begin
+ begin insert into public.user_saved_searches(user_id,query) values(auth.uid(),'overflow');raise exception 'Quota exceeded';exception when check_violation then null;end;
+end $$;
+commit;
+begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+select set_config('request.jwt.claims','{"is_anonymous":true}',true);
+do $$ begin if (select count(*) from public.user_profiles)<>0 then raise exception 'Anonymous Auth identity can read';end if;
+ begin insert into public.user_favorites(user_id,offer_id) values(auth.uid(),14);raise exception 'Anonymous Auth identity can write';exception when insufficient_privilege then null;end;
+end $$;
+rollback;
+begin;
+set local role anon;
+do $$ begin
+ begin perform 1 from public.user_profiles;raise exception 'Anonymous profile exposure';exception when insufficient_privilege then null;end;
+ begin perform 1 from public.user_favorites;raise exception 'Anonymous favorites exposure';exception when insufficient_privilege then null;end;
+ begin perform 1 from public.user_saved_searches;raise exception 'Anonymous searches exposure';exception when insufficient_privilege then null;end;
+end $$;
+rollback;
+reset role;
+do $$ begin if (select count(*) from public.user_favorites)<>1 then raise exception 'Cross-user deletion';end if;end $$;

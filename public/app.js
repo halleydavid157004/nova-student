@@ -38,6 +38,7 @@ const ISO_CODES = [
 /* ============================================
    ESTADO
    ============================================ */
+let accountClient=null;
 let offers = [];
 let saved = new Set();
 try { saved = new Set(JSON.parse(localStorage.getItem('nova-saved-offers') || '[]').filter(Number.isInteger)); } catch { localStorage.removeItem('nova-saved-offers'); }
@@ -66,7 +67,7 @@ function toast(msg, type = 'default') {
 async function apiFetch(url, opts = {}) {
   const r = await fetch(url, opts);
   const j = await r.json();
-  if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
+  if (!r.ok) throw Object.assign(new Error(j.error || `Error ${r.status}`),{status:r.status});
   return j;
 }
 
@@ -161,8 +162,9 @@ function renderCard(o) {
   const foreign=selectedCountry!=='ALL'&&!(o.countries||[]).includes('GLOBAL')&&!(o.countries||[]).includes(selectedCountry);
   const initials = (o.brand || o.title || '?').slice(0, 2).toUpperCase();
   const domain = o.source_domain || (o.source_url ? (() => { try { return new URL(o.source_url).hostname.replace(/^www\./, ''); } catch { return ''; } })() : '');
-  const logoHtml = domain
-    ? `<img src="https://icon.horse/icon/${domain}" alt="" class="brand-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" /><div class="brand-initials" style="display:none;" aria-hidden="true">${esc(initials)}</div>`
+  const logoDomain=/^[a-z0-9.-]+$/i.test(domain)?domain:'';
+  const logoHtml = logoDomain
+    ? `<img src="https://icon.horse/icon/${encodeURIComponent(logoDomain)}" alt="" class="brand-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" /><div class="brand-initials" style="display:none;" aria-hidden="true">${esc(initials)}</div>`
     : `<div class="brand-initials" aria-hidden="true">${esc(initials)}</div>`;
 
   return `
@@ -253,6 +255,7 @@ function bindCards(root) {
       e.stopPropagation();
       const id = Number(btn.dataset.save);
       try {
+        if(accountClient){btn.disabled=true;await accountClient.favorite(id,!saved.has(id));}
         if (saved.has(id)) {
           saved.delete(id);
           btn.textContent = '♡';
@@ -266,12 +269,12 @@ function bindCards(root) {
           btn.setAttribute('aria-label', 'Quitar de guardadas');
           toast('Oferta guardada ✓', 'success');
         }
-        localStorage.setItem('nova-saved-offers', JSON.stringify([...saved]));
+        if(!accountClient)localStorage.setItem('nova-saved-offers', JSON.stringify([...saved]));
         updateSavedBadge();
         if (currentView === 'saved') await loadSaved();
       } catch {
-        toast('Error al guardar', 'error');
-      }
+        toast('No se pudo confirmar el cambio. Tus favoritos se conservan.', 'error');
+      }finally{btn.disabled=false;}
     });
   });
 }
@@ -388,8 +391,9 @@ async function openOffer(id) {
     const { offer: o } = await apiFetch(`/api/offers/${id}`);
     const initials = (o.brand || o.title || '?').slice(0, 2).toUpperCase();
     const domain = o.source_domain || (o.source_url ? (() => { try { return new URL(o.source_url).hostname.replace(/^www\./, ''); } catch { return ''; } })() : '');
-    const logoHtml = domain
-      ? `<img src="https://icon.horse/icon/${domain}" alt="" class="brand-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" /><div class="brand-initials" style="display:none;" aria-hidden="true">${esc(initials)}</div>`
+    const logoDomain=/^[a-z0-9.-]+$/i.test(domain)?domain:'';
+  const logoHtml = logoDomain
+      ? `<img src="https://icon.horse/icon/${encodeURIComponent(logoDomain)}" alt="" class="brand-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" /><div class="brand-initials" style="display:none;" aria-hidden="true">${esc(initials)}</div>`
       : `<div class="brand-initials" aria-hidden="true">${esc(initials)}</div>`;
 
     content.innerHTML = `
@@ -577,10 +581,7 @@ async function loadSaved() {
   try {
     const results = await Promise.allSettled([...saved].map(id => apiFetch(`/api/offers/${id}`)));
     const list = results.filter(x => x.status === 'fulfilled').map(x => x.value.offer);
-    if (list.length !== saved.size) {
-      saved = new Set(list.map(o => o.id));
-      localStorage.setItem('nova-saved-offers', JSON.stringify([...saved]));
-    }
+    if(!accountClient){const previous=[...saved];for(let i=0;i<results.length;i++)if(results[i].status==='rejected'&&results[i].reason.status===404)saved.delete(previous[i]);localStorage.setItem('nova-saved-offers', JSON.stringify([...saved]));}
     render(list, '#savedGrid', true);
     updateSavedBadge();
   } catch (e) {
@@ -913,6 +914,9 @@ async function init() {
       search();
     });
   });
+
+  // Accounts are optional; local favorites continue working when disabled.
+  try{const config=await apiFetch('/api/auth-config');if(config.enabled){const {createAccountClient}=await import('./accounts/client.js');const candidate=await createAccountClient(config);if(await candidate.restore()){const merged=await candidate.mergeFavorites([...saved]);saved=new Set(merged);accountClient=candidate;localStorage.removeItem('nova-saved-offers');$('#accountLink').textContent='Mi cuenta · sincronizada';}}}catch{toast('La sincronización no está disponible. Tus favoritos locales se conservan.');}
 
   // Cargar todo en paralelo
   await Promise.all([

@@ -18,6 +18,7 @@ test('interfaz: filtros, detalle, favoritos, radar, alerta e IA',async()=>{
     const url=new URL(input,window.location.href);
     const route=url.pathname;
     const json=(value,status=200)=>({ok:status<400,status,json:async()=>value});
+    if(route==='/api/auth-config')return json({enabled:false});
     if(route==='/api/meta')return json({categories:['Productivity'],verifications:['Educational email']});
     if(route==='/api/stats')return json({total:1,sources:1,fresh:1,events:0});
     if(route==='/api/categories')return json({categories:[{key:'Productivity',label:'Productividad',color:'#333',emoji:'📚',offers:1}]});
