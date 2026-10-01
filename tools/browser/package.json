@@ -1,1 +1,1 @@
-{"name":"nova-actions-browser-tools","private":true,"type":"module","scripts":{"test":"node --test *.test.js"},"devDependencies":{"playwright":"1.63.0"}}
+{"name":"nova-actions-browser-tools","private":true,"type":"module","scripts":{"test":"node --test *.test.js"},"devDependencies":{"lighthouse":"13.5.0","playwright":"1.63.0"}}

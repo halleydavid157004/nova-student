@@ -168,3 +168,7 @@ El orden es: auditoría (0), tablas normalizadas (1), vigencia con evidencia (2)
 - No publicar códigos privados ni de un solo uso.
 - Respetar límites de frecuencia, robots.txt y términos de cada fuente.
 - Hacer que el usuario confirme el precio y las condiciones finales en la fuente oficial antes de pagar.
+
+### Catálogo estático (fase 4)
+
+La [fase 4](docs/PHASE_4.md) prepara HTML inicial con beneficios publicados, fichas, sitemap y SEO para GitHub Pages gratis. La publicación se activa por separado con `STATIC_PAGES_ENABLED`; Lighthouse ≥90 es una comprobación obligatoria en Actions, no una métrica asumida. Las dependencias de auditoría permanecen en `tools/browser`.

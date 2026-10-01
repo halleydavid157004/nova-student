@@ -47,7 +47,38 @@ jobs:
           RADAR_ENGINE: actions
           WORKER_ENABLED: 'false'
         run: node tools/browser/radar.js
-      # No uploads of state or contacts. Phase 4 will publish only publicCatalog().
+      - name: Build public static catalog
+        if: vars.STATIC_PAGES_ENABLED == 'true'
+        env:
+          STATIC_BASE_URL: https://halleydavid157004.github.io/nova-student/
+        run: node tools/static/build.js
+      - name: Audit public HTML before publishing
+        if: vars.STATIC_PAGES_ENABLED == 'true'
+        run: node tools/browser/audit-catalog.js
+      - uses: actions/upload-pages-artifact@v3
+        if: vars.STATIC_PAGES_ENABLED == 'true'
+        with:
+          path: generated/site
+          retention-days: 1
+
+  pages:
+    needs: radar
+    if: vars.STATIC_PAGES_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: nova-static-pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/configure-pages@v5
+      - uses: actions/deploy-pages@v4
+        id: deployment
 
   # Transitional wake-up is removed when the owner activates Actions.
   legacy-wake:
