@@ -30,11 +30,11 @@ test('Groq switches when a model is blocked and reports the model actually used'
     return Response.json({choices:[{message:{content:'Prueba correcta'}}]});
   };
   try {
-    const response=await chatWithNova('Ofertas de diseño',[{title:'Plan de diseño',brand:'Ejemplo',category:'Design',offer_type:'discount',countries:['CO'],requirements:['Matrícula vigente'],steps:['Consultar la fuente'],source_url:'https://example.invalid/student'}]);
-    assert.equal(response,'Prueba correcta');
+    const response=await chatWithNova('Ofertas de diseño',[{id:1,status:'active',official:true,verified_at:new Date().toISOString(),title:'Plan de diseño',brand:'Ejemplo',category:'Design',offer_type:'discount',countries:['CO'],requirements:['Matrícula vigente'],steps:['Consultar la fuente'],source_url:'https://example.invalid/student'},{id:2,title:'PRIVATE CANDIDATE',status:'pending',official:false,verified_at:new Date().toISOString()}]);
+    assert.match(response,/^Prueba correcta/);assert.match(response,/\?offer=1/);
     assert.deepEqual(calls.map(x=>x.model),['unavailable-model','openai/gpt-oss-20b']);
     assert.equal(calls[1].reasoning_effort,'low');
-    assert.match(calls[1].messages[0].content,/Matrícula vigente/);
+    assert.match(calls[1].messages[0].content,/Matrícula vigente/);assert.ok(!calls[1].messages[0].content.includes('PRIVATE CANDIDATE'));assert.match(calls[1].messages[0].content,/Ficha: https:\/\/nova-student-radar.onrender.com\/\?offer=1/);
     assert.match(calls[1].messages[0].content,/Consultar la fuente/);
     assert.match(calls[1].messages[0].content,/no recomiendes fichas limitadas a otros países/);
     assert.equal(aiStatus().model,'openai/gpt-oss-20b');

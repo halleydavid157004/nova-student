@@ -49,6 +49,13 @@ test('HTTP API: arranque, búsqueda, alertas, seguridad y estado de IA', async t
       const search=await (await request('/api/offers?q=notion')).json();assert.ok(search.offers.some(x=>/notion/i.test(x.brand)));
       assert.equal((await request('/api/offers/99999999')).status,404);
     });
+    await t.test('anonymous search topics reject free text and deduplicate daily events',async()=>{
+      const headers={'content-type':'application/json'};
+      for(const payload of [{topics:['email'],query:'private@example.invalid'},{topics:['private@example.invalid']},{topics:[]}])assert.equal((await request('/api/search-gap',{method:'POST',headers,body:JSON.stringify(payload)})).status,400);
+      for(let i=0;i<2;i++)assert.equal((await request('/api/search-gap',{method:'POST',headers,body:JSON.stringify({topics:['cloud']})})).status,200);
+      const events=(await (await request('/api/events')).json()).events.filter(e=>e.type==='search_gap');
+      assert.equal(events.filter(e=>e.title==='cloud').length,1);assert.ok(!JSON.stringify(events).includes('private@example.invalid'));
+    });
     await t.test('AI returns a clear configuration error',async()=>{
       const status=await (await request('/api/ai/status')).json();assert.equal(status.enabled,false);
       const r=await request('/api/ai/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'Hola'})});

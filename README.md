@@ -172,3 +172,7 @@ El orden es: auditoría (0), tablas normalizadas (1), vigencia con evidencia (2)
 ### Catálogo estático (fase 4)
 
 La [fase 4](docs/PHASE_4.md) prepara HTML inicial con beneficios publicados, fichas, sitemap y SEO para GitHub Pages gratis. La publicación se activa por separado con `STATIC_PAGES_ENABLED`; Lighthouse ≥90 es una comprobación obligatoria en Actions, no una métrica asumida. Las dependencias de auditoría permanecen en `tools/browser`.
+
+### Búsqueda (fase 5)
+
+[Motor compartido ligero](docs/PHASE_5.md): prefijos, tolerancia a errores, tildes, sinónimos ES/EN y filtros de país, categoría, verificación, correo y fecha. El catálogo estático busca localmente; los huecos se registran solo como temas predefinidos sin texto libre ni datos personales. Nova AI enlaza fichas publicadas.

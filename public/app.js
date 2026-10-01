@@ -302,10 +302,10 @@ async function search() {
   const category = $('#category').value;
   const verification = $('#verification').value;
 
-  const params = new URLSearchParams({ q, country, category, verification, limit: '500' });
+  const params = new URLSearchParams({ q, country, category, verification, email:$('#emailRequirement').value,week:String($('#verifiedWeek').checked),limit: '500' });
 
   try {
-    let [{ offers: list }, { sources }] = await Promise.all([
+    let [{ offers: list, suggestions=[],gap_topics=[] }, { sources }] = await Promise.all([
       apiFetch('/api/offers?' + params),
       apiFetch('/api/sources?q=' + encodeURIComponent(q))
     ]);
@@ -333,6 +333,11 @@ async function search() {
 
     visibleCount = 48;
     render(list);
+    let hints=$('#searchHints');if(!hints){hints=document.createElement('div');hints.id='searchHints';$('#resultTitle').after(hints);}
+    hints.replaceChildren();
+    if(!list.length&&q){for(const term of suggestions){const button=document.createElement('button');button.className='btn-ghost';button.textContent='Buscar '+term;button.addEventListener('click',()=>{$('#q').value=term;search();});hints.append(button);}
+      if(gap_topics.length)apiFetch('/api/search-gap',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topics:gap_topics})}).catch(()=>{});
+    }
 
     // Descubrimientos sin verificar
     const knownUrls = new Set(list.map(o => o.source_url));
@@ -743,7 +748,7 @@ $$('.chip').forEach(btn => {
 });
 
 // Filtros en tiempo real
-['#country', '#category', '#verification'].forEach(sel => {
+['#country', '#category', '#verification','#emailRequirement','#verifiedWeek'].forEach(sel => {
   const el = $(sel);
   if (el) el.addEventListener('change', () => search());
 });
@@ -754,6 +759,7 @@ $('#clear').addEventListener('click', () => {
   $('#country').value = 'ALL';
   $('#category').value = 'ALL';
   $('#verification').value = 'ALL';
+  $('#emailRequirement').value='ALL';$('#verifiedWeek').checked=false;
   search();
 });
 
@@ -915,6 +921,7 @@ async function init() {
 
   // Búsqueda inicial
   await search();
+  const offerId=new URLSearchParams(location.search).get('offer');if(/^\d+$/.test(offerId||''))await openOffer(Number(offerId));
 
   // Ocultar skeletons de carga
   const skeleton = $('#loadingSkeleton');
