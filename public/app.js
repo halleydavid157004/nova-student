@@ -1,3 +1,4 @@
+import {highlights} from './search/highlights.js';
 /**
  * Nova Student Radar — Frontend App
  * Rewritten for full functionality & premium UX
@@ -179,6 +180,7 @@ function renderCard(o) {
         >${isSaved ? '♥' : '♡'}</button>
       </div>
       <span class="badge ${badgeClass(o.offer_type)}">${badgeLabel(o.offer_type)}</span>
+      ${highlights(o).map(h=>`<span class="meta-tag" title="${esc(h.reason)}">${esc(h.label)}</span>`).join(' ')}
       <h3>${esc(o.title)}</h3>
       ${o.summary ? `<p class="card-summary">${esc(o.summary)}</p>` : ''}
       <div class="card-meta">
@@ -324,11 +326,11 @@ async function search() {
       weekAgo.setDate(weekAgo.getDate() - 14); // Consider recent as last 14 days
       list = list.filter(o => new Date(o.updated_at || o.created_at || Date.now()) >= weekAgo);
     } else if (currentTab === 'hot') {
-      list = list.filter(o => o.tags?.includes('hot') || o.tags?.includes('trending') || o.tags?.includes('must-have'));
+      list = list.filter(o => highlights(o).some(h=>h.key==='hot'||h.key==='imperdible'));
+    } else if (currentTab === 'imperdible') {
+      list = list.filter(o => highlights(o).some(h=>h.key==='imperdible'));
     } else if (currentTab === 'expiring') {
-      const nextMonth = new Date();
-      nextMonth.setMonth(nextMonth.getMonth() + 2);
-      list = list.filter(o => o.expires_at && new Date(o.expires_at) <= nextMonth);
+      list = list.filter(o => highlights(o).some(h=>h.key==='expiring'));
     }
 
     if (skeleton) skeleton.style.display = 'none';
@@ -875,21 +877,7 @@ async function loadTrending() {
     }
 
     section.hidden = false;
-    grid.innerHTML = trending.map(o => {
-      const tags = o.tags || [];
-      const isHot = tags.includes('hot') || tags.includes('trending');
-      return renderCard(o).replace(
-        '<article class="card"',
-        `<article class="card" ${isHot ? '' : ''}`
-      ) + (isHot ? '' : '');
-    }).map((html, i) => {
-      const tags = trending[i]?.tags || [];
-      const isHot = tags.includes('hot');
-      if (isHot) {
-        return html.replace('</div>\n      <span class="badge', '<span class="hot-badge">🔥 HOT</span></div>\n      <span class="badge');
-      }
-      return html;
-    }).join('');
+    grid.innerHTML = trending.map(renderCard).join('');
 
     bindCards(grid);
   } catch (e) {

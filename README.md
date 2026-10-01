@@ -186,3 +186,7 @@ El radar rota búsquedas por los 249 códigos ISO, con prioridad adicional para 
 `/account.html` prepara favoritos y perfil sincronizados con Supabase Auth. Las cuentas públicas siguen desactivadas hasta verificar SMTP gratuito, redirecciones y tratamiento de datos; los favoritos locales continúan funcionando. [Configuración y límites pendientes](docs/PHASE_6.md).
 
 La extensión apunta a producción. Fuente de configuración: `extension/settings.json`; regenerar manifest/config con `node tools/extension/build.js`. Carga `extension/` sin empaquetar en modo desarrollador de Chrome/Edge. Los avisos al navegar son opt-in; los favoritos de cuenta se abren en la web. No está publicada en las tiendas.
+
+### Destacados y actualización
+
+Hot, Imperdible y Por vencer usan criterios explícitos de revisión, gratuidad y vencimiento; no popularidad inventada. El radar reserva capacidad para revisar las ofertas ya aprobadas. Consulta [criterios y operación](docs/HIGHLIGHTS.md).

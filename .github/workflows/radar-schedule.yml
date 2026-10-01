@@ -10,8 +10,9 @@ concurrency:
   cancel-in-progress: false
 jobs:
   radar:
-    # Explicit activation prevents a half-configured production switch.
-    if: github.event.repository.private == false && vars.RADAR_ACTIONS_ENABLED == 'true'
+    environment: Variables
+    # Configured production environment; explicit false is the emergency stop.
+    if: github.event.repository.private == false && vars.RADAR_ACTIONS_ENABLED != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -83,7 +84,7 @@ jobs:
 
   # Transitional wake-up is removed when the owner activates Actions.
   legacy-wake:
-    if: github.event.repository.private == false && vars.RADAR_ACTIONS_ENABLED != 'true'
+    if: github.event.repository.private == false && vars.RADAR_ACTIONS_ENABLED == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
