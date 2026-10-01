@@ -179,7 +179,15 @@ export async function claimWorker(jobKey,window){
 }
 export async function assertWorker(token){if(normalizedStorage)await normalizedStorage.assertWorker(token);}
 export async function finishWorker(token,status,summary){if(normalizedStorage)await normalizedStorage.finishWorker(token,status,summary);}
-export async function workerMaintenance(){return normalizedStorage?normalizedStorage.maintenance():{capacity_low:false};}
+function forgetAlerts(ids=[]){
+ const removed=new Set(ids);db.alerts=db.alerts.filter(a=>!removed.has(a.id));normalizedStorage.forgetAlerts(ids);
+}
+export async function workerMaintenance(){
+ if(!normalizedStorage)return {capacity_low:false};
+ nativeWrites++;nativeRevision++;
+ try{const result=await normalizedStorage.maintenance();forgetAlerts(result.removed_alert_ids);const {removed_alert_ids,...summary}=result;return {...summary,alerts_removed:removed_alert_ids?.length||0};}
+ finally{nativeWrites--;nativeRevision++;}
+}
 export async function claimDigest(alert,key){
  if(normalizedStorage)return normalizedStorage.claimDigest(alert.id,key);
  if(alert.confirmed!==true)return {skipped:'unconfirmed'};
@@ -237,5 +245,12 @@ export async function emailConsent(op,input={}){
  if(!['request','queue','claim','finish','context','confirm','preview','unsubscribe','preferences','update'].includes(op))throw new Error('Invalid email operation');
  nativeWrites++;nativeRevision++;
  try{return await requestRemote('/rpc/nova_email_consent',{method:'POST',body:JSON.stringify({op,input}),headers:{'Content-Type':'application/json'},jsonResponse:true});}
+ finally{nativeWrites--;nativeRevision++;}
+}
+
+export async function eraseSubscription(input){
+ if(!normalizedStorage)throw new Error('Normalized subscriptions unavailable');
+ nativeWrites++;nativeRevision++;
+ try{const result=await requestRemote('/rpc/nova_erase_subscription',{method:'POST',body:JSON.stringify({input}),headers:{'Content-Type':'application/json'},jsonResponse:true});forgetAlerts(result.removed_alert_ids);return {ok:true};}
  finally{nativeWrites--;nativeRevision++;}
 }

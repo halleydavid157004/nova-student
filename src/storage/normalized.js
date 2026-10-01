@@ -113,6 +113,7 @@ export function createNormalizedStorage(rpc) {
     claimWorker(jobKey,window,token) {return rpc('nova_claim_worker',{request_key:jobKey,window_key:window,owner_token:token});},
     assertWorker(token) {return rpc('nova_assert_worker',{owner_token:token});},
     finishWorker(token,status,summary) {return rpc('nova_finish_worker',{owner_token:token,result_status:status,result_summary:summary});},
+    forgetAlerts(ids) {const removed=new Set(ids);baseline.alerts=baseline.alerts.filter(a=>!removed.has(a.id));},
     maintenance() {return rpc('nova_worker_maintenance');},
     claimDigest(alertId,key) {return rpc('nova_claim_digest',{alert_key:alertId,delivery_key:key});},
     async finishDigest(key,status,providerId) {
