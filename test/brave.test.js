@@ -15,6 +15,7 @@ const storage = await import('../src/db.js');
 const {braveSearch, braveStatus, radarWindow, nextRadarRun} = await import('../src/services/brave.js');
 const {discoverWithBrave, scanAll, getBraveDiscoveryStatus} = await import('../src/services/crawler.js');
 const {getWorkerStatus, runDiscoveryAndScan} = await import('../src/worker.js');
+const mockClient={fetch:async url=>{const response=await globalThis.fetch(url);return {status:response.status,body:await response.text(),url,redirects:[]}}};
 after(() => rmSync(dir, {recursive: true, force: true}));
 
 test('Brave rotates queries, shares concurrent work and survives a restart without spending twice', async t => {
@@ -112,11 +113,11 @@ test('known HTTP restrictions retain their status and scan position survives rel
   );
   t.mock.method(globalThis, 'fetch', async url => String(url).endsWith('/robots.txt')
     ? new Response('User-agent: *\nAllow: /') : new Response('', {status: 403}));
-  const first = await scanAll();
+  const first = await scanAll({client:mockClient});
   assert.equal(first[0].id, 1);
   assert.equal(storage.db.sources[0].last_status, 403);
   storage.load();
-  const second = await scanAll();
+  const second = await scanAll({client:mockClient});
   assert.equal(second[0].id, 2, 'a cold start does not return to the first batch');
   assert.equal(storage.db.runtime.scanCursor, 2);
 });
@@ -150,7 +151,7 @@ test('automatic and manual cycles cannot overlap, and empty Brave results do not
     if (String(url).endsWith('/robots.txt')) return new Response('User-agent: *\nAllow: /');
     return new Response('', {status: 403});
   });
-  const automatic = runDiscoveryAndScan();
+  const automatic = runDiscoveryAndScan({sourceOptions:{client:mockClient}});
   assert.equal(runDiscoveryAndScan({force: true}), automatic);
   assert.equal(getWorkerStatus().scanning, true);
   const result = await automatic;

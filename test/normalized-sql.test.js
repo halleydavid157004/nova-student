@@ -12,9 +12,12 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
   // Never point the destructive test bootstrap at a remotely managed database.
   if (database) assert.ok(['127.0.0.1','localhost'].includes(new URL(database).hostname));
   const fixture = JSON.parse(readFileSync('test/fixtures/legacy-state.json','utf8'));
+  for(const offer of fixture.offers)offer.verified_at=new Date().toISOString();
   fixture.runtime.brave.month = new Date().toISOString().slice(0,7);
   const literal = JSON.stringify(fixture).replaceAll("'","''");
   const migration = readFileSync('supabase/migrations/20260930194450_phase1_normalized_storage.sql','utf8');
+  const phase2=readFileSync('supabase/migrations/20261001005120_phase2_liveness.sql','utf8');
+  const phase2Tests=readFileSync('test/phase2-sql.sql','utf8');
   const rollback = readFileSync('supabase/rollback/phase1_normalized_storage.sql','utf8');
   const sql = `
     create role anon; create role authenticated; create role service_role bypassrls;
@@ -81,12 +84,15 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
       end;
     end $$;
     reset role;
+    ${phase2}
+    ${phase2Tests}
     ${rollback}
     do $$ begin
       if (select mode from nova_private.storage_control where id=1)<>'legacy' then raise exception 'Rollback mode'; end if;
       if not exists(select 1 from public.nova_state,jsonb_array_elements(state->'alerts') a where a->>'email'='new-fixture@example.invalid') then raise exception 'Rollback lost new subscriber'; end if;
       if (select (state->'runtime'->'brave'->>'used')::integer from public.nova_state where id=1)<>17 then raise exception 'Rollback lost budget'; end if;
       if (select count(*) from nova_private.offers)<>4 then raise exception 'Rollback dropped rows'; end if;
+      if not exists(select 1 from nova_private.events where extra->>'legacy_source_id'='999') then raise exception 'Rollback lost orphan evidence';end if;
     end $$;
   `;
   if (pglitePath) {

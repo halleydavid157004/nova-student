@@ -10,7 +10,7 @@ import { isPublishedOffer } from '../src/services/search.js';
 test('expired promotions and unreviewed leads stay out of the public catalog',()=>{
   assert.equal(isPublishedOffer({status:'active',official:true,expires_at:'2020-01-01T00:00:00Z'}),false);
   assert.equal(isPublishedOffer({status:'active',official:false,reviewed:false}),false);
-  assert.equal(isPublishedOffer({status:'active',official:true}),true);
+  assert.equal(isPublishedOffer({status:'active',official:true,verified_at:new Date().toISOString()}),true);
 });
 
 test('seed uses the current ChatGPT student promotion and excludes unsupported AI claims',()=>{

@@ -5,7 +5,7 @@ import {JSDOM} from 'jsdom';
 
 const html=readFileSync('public/index.html','utf8');
 const app=readFileSync('public/app.js','utf8');
-const sample={id:1,brand:'Notion',title:'Plan educativo Notion',summary:'Gratis para estudiantes',benefit:'Acceso educativo',category:'Productivity',verification:'Educational email',countries:['GLOBAL'],offer_type:'free',official:true,confidence:99,source_url:'https://www.notion.so/product/notion-for-education',source_domain:'notion.so',verified_at:new Date().toISOString(),tags:['trending'],steps:['Visita Notion']};
+const sample={id:1,brand:'Notion',title:'Plan educativo Notion',summary:'Gratis para estudiantes',benefit:'Acceso educativo',category:'Productivity',verification:'Educational email',countries:['GLOBAL'],offer_type:'free',official:true,confidence:99,source_url:'https://www.notion.so/product/notion-for-education',source_domain:'notion.so',verified_at:new Date().toISOString(),tags:['trending'],steps:['Visita Notion'],liveness_verified_at:new Date().toISOString(),source_excerpt:'<img src=x onerror=alert(1)> beneficio estudiantil'};
 const catalog=Array.from({length:60},(_,i)=>({...sample,id:i+1,title:`Plan educativo ${i+1}`}));
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
@@ -22,6 +22,7 @@ test('interfaz: filtros, detalle, favoritos, radar, alerta e IA',async()=>{
     if(route==='/api/stats')return json({total:1,sources:1,fresh:1,events:0});
     if(route==='/api/categories')return json({categories:[{key:'Productivity',label:'Productividad',color:'#333',emoji:'📚',offers:1}]});
     if(route==='/api/offers/trending')return json({offers:[sample]});
+    if(route==='/api/offers/1/reports')return json({ok:true});
     if(route==='/api/offers/1')return json({offer:sample});
     if(route==='/api/offers')return json({offers:url.searchParams.get('q')==='inexistente'?[]:catalog});
     if(route==='/api/sources')return json({sources:Array.from({length:100},(_,i)=>({id:i+1,name:`Notion ${i+1}`,domain:'notion.so',category:'Productivity',url:sample.source_url,official:true,last_error:i===0?'HTTP 403':null,last_status:i===0?403:i===1?404:200}))});
@@ -45,6 +46,9 @@ test('interfaz: filtros, detalle, favoritos, radar, alerta e IA',async()=>{
     assert.equal($('#nova-ai-model-label').textContent,'openai/gpt-oss-20b');
     $('#grid .card').click(); await sleep(10);
     assert.equal($('#modal').hasAttribute('hidden'),false);
+    assert.equal($('#offerEvidence').querySelector('img'),null,'source evidence is escaped');
+    assert.match($('#offerEvidence').textContent,/<img src=x/);
+    $('#offerReportForm').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));await sleep(10);
     $('[data-close]').click();
     $('#grid .save-btn').click(); await sleep(10);
     assert.equal($('#savedCount').textContent,'1');

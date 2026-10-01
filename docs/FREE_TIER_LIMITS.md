@@ -18,3 +18,9 @@ Consulta: **2026-09-30 UTC**. Fuentes oficiales; no es una inspección del consu
 ## Controles y límites pendientes
 
 No se creó ni actualizó ningún recurso de pago. El consumo de otras aplicaciones de una cuenta no se puede deducir del contador de Nova. La Fase 1 convierte el presupuesto de Brave en reserva transaccional por mes UTC, compartida entre procesos; el modo antiguo `snapshot` conserva la limitación de un escritor. La coordinación de ciclos pasa a Actions en Fase 3. El correo actual todavía carece de cola y tope persistente: no tratarlo como listo para una campaña pública. Auth, Pages y Playwright se documentarán con sus fuentes antes de esas fases.
+
+## Fase 2 — consultas 2026-09-30
+
+No se habilitó pago ni se añadieron servicios. Playwright 1.63.0 vive en `tools/browser`; el runner Ubuntu estándar del repositorio público ejecuta Chromium, guarda una sola familia de caché por lockfile y no sube artefactos. No se aumenta la cuota de caché de GitHub. [Documentación de instalación](https://playwright.dev/docs/browsers) y [caché Actions](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows).
+
+Groq mantiene free tier y los mismos modelos: 12 llamadas de extracción por ciclo, contando reintentos; el chat comparte el límite global ya existente. [JSON mode](https://console.groq.com/docs/structured-outputs) evita nuevos SDKs o modelos de pago. La restricción de frecuencia de cada fuente se conserva también durante renderizado headless. Las tablas/checks contienen señales y citas breves, no HTML completo; retención y tamaños se revisarán en Fase 3.

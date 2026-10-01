@@ -4,7 +4,7 @@ Una plataforma propia para descubrir, buscar y vigilar beneficios para estudiant
 
 ## Estado del proyecto
 
-La versión 2.2.0 usa tablas privadas normalizadas en Supabase, escrituras por fila y presupuesto de Brave transaccional. El radar todavía se ejecuta dentro de Render. La [Fase 1](docs/PHASE_1.md) documenta migración, despliegue manual y rollback; el cambio requiere aplicar el SQL antes de arrancar esta versión. La [auditoría de código](docs/AUDIT.md) describe las limitaciones y el orden de las fases; no se presentan como terminadas las funciones de la misión que aún no existen. Los [límites gratuitos](docs/FREE_TIER_LIMITS.md) tienen fuentes oficiales y fecha de consulta.
+La versión 2.3.0 añade validación de vigencia y evidencia sobre tablas privadas normalizadas en Supabase, escrituras por fila y presupuesto de Brave transaccional. El radar todavía se ejecuta dentro de Render. La [Fase 1](docs/PHASE_1.md) documenta migración, despliegue manual y rollback; el cambio requiere aplicar el SQL antes de arrancar esta versión. La [auditoría de código](docs/AUDIT.md) describe las limitaciones y el orden de las fases; no se presentan como terminadas las funciones de la misión que aún no existen. Los [límites gratuitos](docs/FREE_TIER_LIMITS.md) tienen fuentes oficiales y fecha de consulta.
 
 ## Arranque en Windows
 
@@ -56,7 +56,9 @@ npm test
 node --experimental-test-coverage --test test/*.test.js
 ```
 
-`npm ci` instala jsdom de desarrollo; no es necesario para arrancar el servidor. Los tests usan datos sintéticos, HTTP local y proveedores simulados. CI ejecuta Node 20/24 en Linux, el lanzador en Windows y migración/rollback en PostgreSQL 17 real con fixtures sintéticos. Las pruebas UI actuales son jsdom: todavía no prueban layout, entrega de correos ni flujos E2E con Playwright. La auditoría recoge cobertura y huecos.
+`npm ci` instala jsdom de desarrollo; no es necesario para arrancar el servidor. Los tests usan datos sintéticos, HTTP local y proveedores simulados. CI ejecuta Node 20/24 en Linux, el lanzador en Windows y migración/rollback en PostgreSQL 17 real con fixtures sintéticos. Las pruebas locales UI usan jsdom; Actions añade Chromium. No prueban entrega real de correos ni sustituyen Lighthouse. La auditoría recoge cobertura y huecos.
+
+Las pruebas de navegador en Actions también buscan, abren una ficha y guardan una alerta; Playwright vive solo en `tools/browser`, fuera de las dependencias del servidor.
 
 Cada fase tendrá un PR propio con plan, archivos, pruebas y riesgos. Antes de publicar, revisa `git diff` y `git status`; nunca subas `.env`, direcciones de suscriptores ni copias privadas. Se eliminaron el uploader automático y los lanzadores duplicados para evitar rutas personales y commits indiscriminados.
 
@@ -68,11 +70,17 @@ Los favoritos se guardan en el navegador de cada visitante. La base JSON local d
 
 1. En el proyecto **Free** existente, aplica [la migración de Fase 1](supabase/migrations/20260930194450_phase1_normalized_storage.sql) con el propietario de la base. Importa `nova_state` si existe y conserva un puente para el servidor anterior. No expongas el esquema `nova_private` en la Data API; mantén `public` expuesto y la exposición automática de nuevas tablas desactivada.
 2. En Render Free, configura `SUPABASE_URL` y `SUPABASE_SECRET_KEY` (`sb_secret_`) **solo en el servidor**, y `SUPABASE_STORAGE_MODE=normalized`. Conserva las claves actuales si ya funcionan.
-3. Haz **Manual Deploy → Deploy latest commit**. El arranque importa la última instantánea y activa las tablas. `/api/health` debe indicar versión `2.2.0`, `storage.schema: normalized`, proveedor `supabase`, `ready: true`, `synced: true`, `error: false`.
+3. Haz **Manual Deploy → Deploy latest commit**. El arranque importa la última instantánea y activa las tablas. `/api/health` debe indicar versión `2.3.0`, `storage.schema: normalized`, proveedor `supabase`, `ready: true`, `synced: true`, `error: false`.
 
 Solo `public_offers` permite lectura pública de fichas activas oficiales o revisadas. Suscriptores, alertas y RPC privados no admiten acceso anónimo. Las escrituras por fila protegen modificaciones simultáneas; el presupuesto se reserva en PostgreSQL antes de llamar a Brave. La [guía de Fase 1](docs/PHASE_1.md) explica pruebas, conflictos, recarga de memoria y rollback. `npm run migrate:state` repite la importación antes del corte e imprime solo recuentos.
 
 La semilla se carga cuando el catálogo está vacío. `SEED_DATABASE_PATH` sirve para el almacenamiento local/antiguo; importa una copia privada anterior antes del corte, fuera del repositorio. Free incluye 500 MB y no copias diarias automáticas: conserva backups privados de las tablas. No publiques correos ni exports. Guardar una alerta no confirma entrega de correo. El radar sigue dependiendo de Render despierto hasta la Fase 3.
+
+## Vigencia y evidencia
+
+La [Fase 2](docs/PHASE_2.md) deja de aceptar HTTP 200 como verificación. Comprueba robots, redirecciones, soft-404, extracción con cita y cambios materiales. Un fallo aislado no retira una oferta revisada; dos fallos negativos consecutivos requieren revisión. Una recuperación no la republica automáticamente. Sin verificación exitosa durante 14 días (configurable), la ficha deja de mostrarse como vigente. La ficha diferencia comprobación antigua y evidencia validada, y recibe reportes con límites de abuso. Aplica la migración de Fase 2 antes de desplegar 2.3.0.
+
+El workflow manual de validación usa headless solo en Actions, requiere Secrets y no despierta Render. El radar completo cada seis horas se trasladará en Fase 3.
 
 ## Protección de recursos gratuitos
 
