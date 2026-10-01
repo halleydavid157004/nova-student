@@ -599,7 +599,7 @@ function renderRadarSchedule(worker) {
     : brave.budget?.remaining === 0 ? 'Límite mensual alcanzado' : 'Programado cada 6 horas';
   const date = value => value && Number.isFinite(Date.parse(value))
     ? new Date(value).toLocaleString('es-CO', {dateStyle: 'short', timeStyle: 'short'}) : 'Pendiente';
-  panel.innerHTML = `<div><span class="radar-schedule-label">BRAVE SEARCH</span><strong>${esc(state)}</strong></div>
+  panel.innerHTML = `<div><span class="radar-schedule-label">${worker.engine==='actions'?'RADAR · GITHUB ACTIONS':'BRAVE SEARCH'}</span><strong>${esc(state)}</strong></div>
     <div><span class="radar-schedule-label">ÚLTIMA BÚSQUEDA</span><strong>${esc(date(brave.lastCompletedAt))}</strong></div>
     <div><span class="radar-schedule-label">PRÓXIMA VENTANA</span><strong>${esc(date(brave.nextRunAt))}</strong></div>
     <p>Hasta 4 búsquedas por ciclo. Las pistas nuevas se revisan antes de aparecer en el catálogo.</p>`;
