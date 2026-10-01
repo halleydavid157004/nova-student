@@ -28,6 +28,9 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
   const accountPolicyRollback=readFileSync('supabase/rollback/phase6_account_policy_plan.sql','utf8');
   const accountTests=readFileSync('test/phase6-sql.sql','utf8');
   const accountRollback=readFileSync('supabase/rollback/phase6_accounts.sql','utf8');
+  const emailConsent=readFileSync('supabase/migrations/20261001175015_phase7_email_consent.sql','utf8');
+  const emailTests=readFileSync('test/phase7-sql.sql','utf8');
+  const emailRollback=readFileSync('supabase/rollback/phase7_email_consent.sql','utf8');
   const rollback = readFileSync('supabase/rollback/phase1_normalized_storage.sql','utf8');
   const sql = `
     create role anon; create role authenticated; create role service_role bypassrls;
@@ -105,6 +108,10 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
     reset role;${accounts}
     ${accountPolicy}
     ${accountTests}
+    reset role;${emailConsent}
+    ${emailTests}
+    ${emailRollback}
+    do $$ begin if has_function_privilege('service_role','public.nova_email_consent(text,jsonb)','EXECUTE') then raise exception 'Email rollback still callable';end if;end $$;
     ${accountPolicyRollback}
     ${accountRollback}
     do $$ begin if has_table_privilege('authenticated','public.user_profiles','SELECT') then raise exception 'Account rollback still exposes profiles';end if;if (select count(*) from public.user_profiles)<>2 then raise exception 'Account rollback deleted data';end if;end $$;
