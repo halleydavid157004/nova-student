@@ -109,6 +109,15 @@ export function createNormalizedStorage(rpc) {
       else baseline.alerts[index] = structuredClone(row);
       return row;
     },
+    claimWorker(jobKey,window,token) {return rpc('nova_claim_worker',{request_key:jobKey,window_key:window,owner_token:token});},
+    assertWorker(token) {return rpc('nova_assert_worker',{owner_token:token});},
+    finishWorker(token,status,summary) {return rpc('nova_finish_worker',{owner_token:token,result_status:status,result_summary:summary});},
+    maintenance() {return rpc('nova_worker_maintenance');},
+    claimDigest(alertId,key) {return rpc('nova_claim_digest',{alert_key:alertId,delivery_key:key});},
+    async finishDigest(key,status,providerId) {
+      const row=await rpc('nova_finish_digest',{delivery_key:key,result_status:status,provider_key:providerId||null});
+      const existing=baseline.alerts.find(a=>a.id===row.id);if(existing)Object.assign(existing,row);return row;
+    },
     validationContext(offerId) { return rpc('nova_validation_context',{offer_id:offerId}); },
     configureValidation(days) { return rpc('nova_configure_validation',{days}); },
     async recordCheck(input) {
