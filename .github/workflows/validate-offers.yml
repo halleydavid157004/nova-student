@@ -8,7 +8,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   validate:
-    if: github.event.repository.private == false && vars.RADAR_ACTIONS_ENABLED == 'true'
+    environment: Variables
+    if: github.event.repository.private == false && vars.RADAR_ACTIONS_ENABLED != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
