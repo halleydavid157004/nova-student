@@ -37,6 +37,7 @@ export function changesBetween(before, after) {
   }
   const oldRuntime = before.runtime || {}, nextRuntime = after.runtime || {};
   for (const key of Object.keys(nextRuntime)) {
+    if(key==='_workerExecution')continue; // Read-only projection from worker_runs/lease.
     const value = runtimeValue(key, nextRuntime[key]);
     const old = runtimeValue(key, oldRuntime[key]);
     if (!same(old, value)) changes.push({collection: 'runtime', patch: {key, value}, expected: {value: old ?? null}});

@@ -102,9 +102,11 @@ async function runDigest() {
 
 export function getWorkerStatus() {
   const state = workerState();
+  const execution=db.runtime?._workerExecution;
+  const remoteRunning=radarEngine()==='actions'&&execution?.status==='started'&&Date.parse(execution.leased_until)>Date.now();
   return {
     enabled: radarEngine()==='actions'||process.env.WORKER_ENABLED !== 'false',engine:radarEngine(),localEnabled:radarEngine()==='render'&&process.env.WORKER_ENABLED !== 'false',
-    scanning: Boolean(scanTask), scanCount: state.scanCount || 0,
+    scanning: Boolean(scanTask)||!!remoteRunning,localScanning:Boolean(scanTask),execution:execution||null,scanCount: state.scanCount || 0,
     intervalHours: 6, nextRunAt: nextRadarRun(),
     lastStartedAt: state.lastStartedAt || null,
     lastCompletedAt: state.lastCompletedAt || null,

@@ -23,3 +23,9 @@ test('full Actions cycle does not call Render, preserves publication and emits p
  assert.ok(!JSON.stringify(exported).includes('private-subscriber'));assert.ok(!JSON.stringify(result.summary).includes('fixture-only'));
  assert.equal(getWorkerStatus().engine,'actions');assert.equal(getWorkerStatus().localEnabled,false);
 });
+
+test('worker status reflects the external lease without freezing Render refreshes',()=>{
+ db.runtime._workerExecution={status:'started',leased_until:new Date(Date.now()+60000).toISOString()};
+ assert.equal(getWorkerStatus().scanning,true);assert.equal(getWorkerStatus().localScanning,false);
+ db.runtime._workerExecution.leased_until='2000-01-01';assert.equal(getWorkerStatus().scanning,false);
+});

@@ -68,7 +68,7 @@ Los favoritos se guardan en el navegador de cada visitante. La base JSON local d
 
 ## Persistencia gratuita con Supabase
 
-1. En el proyecto **Free** existente, aplica [la migración de Fase 1](supabase/migrations/20260930194450_phase1_normalized_storage.sql) con el propietario de la base. Importa `nova_state` si existe y conserva un puente para el servidor anterior. No expongas el esquema `nova_private` en la Data API; mantén `public` expuesto y la exposición automática de nuevas tablas desactivada.
+1. En el proyecto **Free** existente, aplica las [migraciones de Fases 1–3](supabase/migrations/) en orden con el propietario de la base. Importa `nova_state` si existe y conserva un puente para el servidor anterior. No expongas el esquema `nova_private` en la Data API; mantén `public` expuesto y la exposición automática de nuevas tablas desactivada.
 2. En Render Free, configura `SUPABASE_URL` y `SUPABASE_SECRET_KEY` (`sb_secret_`) **solo en el servidor**, y `SUPABASE_STORAGE_MODE=normalized`. Conserva las claves actuales si ya funcionan.
 3. Haz **Manual Deploy → Deploy latest commit**. El arranque importa la última instantánea y activa las tablas. `/api/health` debe indicar versión `2.4.0`, `storage.schema: normalized`, proveedor `supabase`, `ready: true`, `synced: true`, `error: false`.
 

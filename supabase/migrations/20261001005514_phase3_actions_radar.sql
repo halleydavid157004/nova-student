@@ -153,5 +153,21 @@ begin
  return jsonb_build_object('offer',nova_private.legacy_row('offers',to_jsonb(o)),'check_id',c.id);
 end $$;
 
+create or replace function public.nova_load_rows() returns jsonb
+language sql stable set search_path='' as $$
+  select jsonb_build_object(
+    'offers',(select coalesce(jsonb_agg(nova_private.legacy_row('offers',to_jsonb(o)) order by id),'[]') from nova_private.offers o),
+    'sources',(select coalesce(jsonb_agg(nova_private.legacy_row('sources',to_jsonb(s)) order by id),'[]') from nova_private.sources s),
+    'events',(select coalesce(jsonb_agg(nova_private.legacy_row('events',to_jsonb(e)) order by id),'[]') from nova_private.events e),
+    'alerts',(select coalesce(jsonb_agg(nova_private.legacy_row('alerts',to_jsonb(a)) || jsonb_build_object('email',s.email) order by a.id),'[]') from nova_private.alerts a join nova_private.subscribers s on s.id=a.subscriber_id),
+    'favorites',coalesce((select value from nova_private.app_runtime where key='_legacy_favorites'),'[]'),
+    'runtime',jsonb_build_object('_workerExecution',(select jsonb_build_object('run_id',w.id,'status',w.status,'started_at',w.started_at,'finished_at',w.finished_at,'leased_until',l.leased_until) from nova_private.worker_runs w left join nova_private.job_leases l on l.run_id=w.id where w.job_key ~ '^(radar|validate):' order by w.started_at desc,w.id desc limit 1)) || coalesce((select jsonb_object_agg(key,value) from nova_private.app_runtime where key not like '\_%'),'{}') ||
+      jsonb_build_object('brave',coalesce((select value from nova_private.app_runtime where key='brave'),'{}') ||
+        jsonb_build_object('month',to_char(now() at time zone 'UTC','YYYY-MM'),
+          'used',coalesce((select used from nova_private.budget_usage where provider='brave' and month=to_char(now() at time zone 'UTC','YYYY-MM')),0),
+          'lookupUsed',coalesce((select lookup_used from nova_private.budget_usage where provider='brave' and month=to_char(now() at time zone 'UTC','YYYY-MM')),0)))
+  );
+$$;
+
 notify pgrst,'reload schema';
 commit;

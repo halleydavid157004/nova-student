@@ -595,7 +595,7 @@ function renderRadarSchedule(worker) {
   const labels = {authentication: 'Revisar conexión', quota: 'Cuota alcanzada', rate_limited: 'Pausa temporal',
     upstream: 'Proveedor no disponible', network: 'Sin respuesta', storage: 'Guardado pendiente', invalid_response: 'Respuesta no válida'};
   let state = !worker.enabled ? 'Pausado' : !brave.enabled ? 'Sin conectar'
-    : brave.running ? 'Buscando oportunidades' : brave.lastError ? labels[brave.lastError] || 'Revisar conexión'
+    : worker.scanning || brave.running ? 'Buscando oportunidades' : brave.lastError ? labels[brave.lastError] || 'Revisar conexión'
     : brave.budget?.remaining === 0 ? 'Límite mensual alcanzado' : 'Programado cada 6 horas';
   const date = value => value && Number.isFinite(Date.parse(value))
     ? new Date(value).toLocaleString('es-CO', {dateStyle: 'short', timeStyle: 'short'}) : 'Pendiente';

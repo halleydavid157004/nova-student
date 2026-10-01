@@ -3,6 +3,8 @@ set local role service_role;
 do $$ declare first jsonb; second jsonb; begin
  first:=public.nova_claim_worker('radar:fixture',10,'00000000-0000-0000-0000-000000000001');
  if first->>'run_id' is null then raise exception 'Worker not claimed';end if;
+ if public.nova_load_rows()->'runtime'->'_workerExecution'->>'status'<>'started' then raise exception 'External status unavailable';end if;
+ if public.nova_load_rows()->'runtime'->'_workerExecution' ? 'token' then raise exception 'Lease token leaked';end if;
  second:=public.nova_claim_worker('validate:fixture',10,'00000000-0000-0000-0000-000000000002');
  if second->>'skipped'<>'busy' then raise exception 'Overlapping worker allowed';end if;
  perform public.nova_assert_worker('00000000-0000-0000-0000-000000000001');
