@@ -16,7 +16,7 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
   fixture.runtime.brave.month = new Date().toISOString().slice(0,7);
   const literal = JSON.stringify(fixture).replaceAll("'","''");
   const migration = readFileSync('supabase/migrations/20260930194450_phase1_normalized_storage.sql','utf8');
-  const phase2=readFileSync('supabase/migrations/20260930202203_phase2_liveness.sql','utf8');
+  const phase2=readFileSync('supabase/migrations/20261001005120_phase2_liveness.sql','utf8');
   const phase2Tests=readFileSync('test/phase2-sql.sql','utf8');
   const rollback = readFileSync('supabase/rollback/phase1_normalized_storage.sql','utf8');
   const sql = `
