@@ -176,3 +176,7 @@ La [fase 4](docs/PHASE_4.md) prepara HTML inicial con beneficios publicados, fic
 ### Búsqueda (fase 5)
 
 [Motor compartido ligero](docs/PHASE_5.md): prefijos, tolerancia a errores, tildes, sinónimos ES/EN y filtros de país, categoría, verificación, correo y fecha. El catálogo estático busca localmente; los huecos se registran solo como temas predefinidos sin texto libre ni datos personales. Nova AI enlaza fichas publicadas.
+
+### Cobertura internacional y duplicados
+
+El radar rota búsquedas por los 249 códigos ISO, con prioridad adicional para Latinoamérica y el mismo presupuesto de Brave. Activa «Explorar también otros países» para ampliar resultados; comprueba residencia y matrícula en cada ficha. La búsqueda y el catálogo agrupan duplicados conocidos sin borrar historial. Detalles, pruebas y límites: [docs/RADAR_COVERAGE.md](docs/RADAR_COVERAGE.md).

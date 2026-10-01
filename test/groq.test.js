@@ -37,6 +37,7 @@ test('Groq switches when a model is blocked and reports the model actually used'
     assert.match(calls[1].messages[0].content,/Matrícula vigente/);assert.ok(!calls[1].messages[0].content.includes('PRIVATE CANDIDATE'));assert.match(calls[1].messages[0].content,/Ficha: https:\/\/nova-student-radar.onrender.com\/\?offer=1/);
     assert.match(calls[1].messages[0].content,/Consultar la fuente/);
     assert.match(calls[1].messages[0].content,/no recomiendes fichas limitadas a otros países/);
+    assert.match(calls[1].messages[0].content,/salvo si pide explícitamente explorarlas/);assert.match(calls[1].messages[0].content,/No infieras que necesita VPN/);
     assert.equal(aiStatus().model,'openai/gpt-oss-20b');
     assert.equal(aiStatus().error,null);
   } finally {globalThis.fetch=original;}

@@ -157,6 +157,8 @@ function badgeLabel(type) {
    ============================================ */
 function renderCard(o) {
   const isSaved = saved.has(o.id);
+  const selectedCountry=$('#country')?.value || 'ALL';
+  const foreign=selectedCountry!=='ALL'&&!(o.countries||[]).includes('GLOBAL')&&!(o.countries||[]).includes(selectedCountry);
   const initials = (o.brand || o.title || '?').slice(0, 2).toUpperCase();
   const domain = o.source_domain || (o.source_url ? (() => { try { return new URL(o.source_url).hostname.replace(/^www\./, ''); } catch { return ''; } })() : '');
   const logoHtml = domain
@@ -181,7 +183,8 @@ function renderCard(o) {
         <span class="meta-tag">${esc(o.category)}</span>
         <span class="meta-tag">${esc(o.verification)}</span>
         ${o.official ? '<span class="meta-tag official">✓ Oficial</span>' : ''}
-        ${(o.countries || []).includes('GLOBAL') ? '<span class="meta-tag">🌍 Global</span>' : ''}
+        <span class="meta-tag">🌍 ${esc((o.countries || []).join(', ') || 'Países por confirmar')}</span>
+        ${foreign?'<span class="meta-tag">Otro país: comprueba elegibilidad</span>':''}
       </div>
     </article>`;
 }
@@ -302,7 +305,7 @@ async function search() {
   const category = $('#category').value;
   const verification = $('#verification').value;
 
-  const params = new URLSearchParams({ q, country, category, verification, email:$('#emailRequirement').value,week:String($('#verifiedWeek').checked),limit: '500' });
+  const params = new URLSearchParams({ q, country, category, verification, email:$('#emailRequirement').value,week:String($('#verifiedWeek').checked),cross:String($('#crossCountry').checked),limit: '500' });
 
   try {
     let [{ offers: list, suggestions=[],gap_topics=[] }, { sources }] = await Promise.all([
@@ -443,10 +446,11 @@ async function openOffer(id) {
           <span class="info-pill">📅 ${o.liveness_verified_at ? 'Verificada con evidencia' : 'Última comprobación'}: ${new Date(o.liveness_verified_at || o.verified_at).toLocaleDateString('es', { dateStyle: 'medium' })}</span>
           ${o.liveness_status && o.liveness_status !== 'active' ? '<span class="info-pill">🔎 Necesita revisión</span>' : ''}
           ${o.official ? '<span class="info-pill">✅ Fuente oficial</span>' : ''}
-          ${(o.countries || []).includes('GLOBAL') ? '<span class="info-pill">🌍 Global</span>' : ''}
+          <span class="info-pill">🌍 ${esc((o.countries || []).join(', ') || 'Países por confirmar')}</span>
         </div>
       </div>
 
+      <div class="offer-section"><h3>Acceso desde otros países</h3><p>Comprueba residencia, matrícula y método de verificación en los requisitos y la fuente. Una VPN no sustituye esos requisitos; utiliza solo métodos expresamente permitidos por el proveedor.</p></div>
       ${o.liveness_verified_at && o.source_excerpt ? `<div class="offer-section" id="offerEvidence"><h3>Evidencia de la última verificación</h3><blockquote>${esc(o.source_excerpt)}</blockquote></div>` : ''}
       <form id="offerReportForm" class="offer-section"><label for="offerReportReason">¿Qué ocurrió al intentar reclamarla?</label>
         <select id="offerReportReason"><option value="worked">Me funcionó</option><option value="expired">La oferta terminó</option><option value="changed">Las condiciones cambiaron</option><option value="broken">El enlace no funciona</option></select>
@@ -748,7 +752,7 @@ $$('.chip').forEach(btn => {
 });
 
 // Filtros en tiempo real
-['#country', '#category', '#verification','#emailRequirement','#verifiedWeek'].forEach(sel => {
+['#country', '#category', '#verification','#emailRequirement','#verifiedWeek','#crossCountry'].forEach(sel => {
   const el = $(sel);
   if (el) el.addEventListener('change', () => search());
 });
@@ -759,7 +763,7 @@ $('#clear').addEventListener('click', () => {
   $('#country').value = 'ALL';
   $('#category').value = 'ALL';
   $('#verification').value = 'ALL';
-  $('#emailRequirement').value='ALL';$('#verifiedWeek').checked=false;
+  $('#emailRequirement').value='ALL';$('#verifiedWeek').checked=false;$('#crossCountry').checked=false;
   search();
 });
 

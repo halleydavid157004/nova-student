@@ -9,6 +9,7 @@
 
 const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
 import {EXTRACTION_SCHEMA,maxAgeDays} from './liveness.js';
+import {uniqueOffers} from '../../public/search/identity.js';
 import {published} from '../../public/search/engine.js';
 
 export async function extractLiveness(text) {
@@ -279,7 +280,7 @@ export async function chatWithNova(userMessage, offers = []) {
   // Smart Context: Score and sort offers based on relevance to the user's message
   const userWords = userMessage.toLowerCase().replace(/[^a-z0-9áéíóúñ]/g, ' ').split(/\s+/).filter(w => w.length > 2);
   
-  const scoredOffers = offers.filter(o=>published(o,Date.now(),maxAgeDays())).map(o => {
+  const scoredOffers = uniqueOffers(offers.filter(o=>published(o,Date.now(),maxAgeDays()))).map(o => {
     let score = o.confidence || 0;
     const searchableText = `${o.title} ${o.brand} ${o.category} ${o.summary}`.toLowerCase();
     
@@ -314,7 +315,8 @@ ${topOffers}
 REGLAS:
 - Solo recomienda ofertas de la lista
 - No inventes precios, vigencia, países, métodos de verificación ni pasos que no figuren en la ficha. Si falta un dato, di que debe consultarse en la fuente.
-- Si el usuario indica un país, no recomiendes fichas limitadas a otros países. GLOBAL no garantiza elegibilidad local: pide confirmarla en la fuente.
+- Si el usuario indica un país, no recomiendes fichas limitadas a otros países salvo si pide explícitamente explorarlas; en ese caso aclara la restricción regional y los requisitos. GLOBAL no garantiza elegibilidad local: pide confirmarla en la fuente.
+- No infieras que necesita VPN por estar en otro país. Recomienda VPN u otro método solo si la fuente aprobada lo permite expresamente; una VPN no sustituye residencia ni matrícula.
 - Cita la URL exacta de la ficha y pide confirmar las condiciones actuales allí antes de pagar o registrarse.
 - Si no hay oferta para lo que pide el usuario, dilo honestamente
 - Si preguntan algo no relacionado con ofertas, redirige amablemente`;
