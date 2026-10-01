@@ -30,6 +30,9 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
   const accountRollback=readFileSync('supabase/rollback/phase6_accounts.sql','utf8');
   const emailConsent=readFileSync('supabase/migrations/20261001175015_phase7_email_consent.sql','utf8');
   const emailTests=readFileSync('test/phase7-sql.sql','utf8');
+  const erasure=readFileSync('supabase/migrations/20261001232638_phase7_email_erasure.sql','utf8');
+  const erasureTests=readFileSync('test/phase7-erasure-sql.sql','utf8');
+  const erasureRollback=readFileSync('supabase/rollback/phase7_email_erasure.sql','utf8');
   const emailRollback=readFileSync('supabase/rollback/phase7_email_consent.sql','utf8');
   const rollback = readFileSync('supabase/rollback/phase1_normalized_storage.sql','utf8');
   const sql = `
@@ -110,6 +113,10 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
     ${accountTests}
     reset role;${emailConsent}
     ${emailTests}
+    reset role;${erasure}
+    ${erasureTests}
+    ${erasureRollback}
+    do $$ begin if has_function_privilege('service_role','public.nova_erase_subscription(jsonb)','EXECUTE') then raise exception 'Erasure rollback still callable';end if;end $$;
     ${emailRollback}
     do $$ begin if has_function_privilege('service_role','public.nova_email_consent(text,jsonb)','EXECUTE') then raise exception 'Email rollback still callable';end if;end $$;
     ${accountPolicyRollback}

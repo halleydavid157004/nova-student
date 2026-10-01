@@ -1,13 +1,13 @@
-import {emailConsent} from '../db.js';
+import {emailConsent,eraseSubscription} from '../db.js';
 import {privacyConfig,verifyEmailToken,CONSENT_VERSION} from './subscriptions.js';
 import {createRequestBudget} from './api-limits.js';
 const admission=createRequestBudget({limit:120,windowMs:3600000,maxConcurrent:3});
-export async function handleSubscriptions(req,res,url,{json,body,rpc=emailConsent}={}){
+export async function handleSubscriptions(req,res,url,{json,body,rpc=emailConsent,erase=eraseSubscription}={}){
  if(url.pathname==='/api/privacy'&&req.method==='GET'){json(res,200,privacyConfig());return true;}
  if(!url.pathname.startsWith('/api/subscriptions/'))return false;
  res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');
  const action=url.pathname.slice('/api/subscriptions/'.length);
- if(!['confirm','preview','unsubscribe','preferences','update'].includes(action)){json(res,404,{error:'Not found'});return true;}
+ if(!['confirm','preview','unsubscribe','preferences','update','erase'].includes(action)){json(res,404,{error:'Not found'});return true;}
  if(req.method!=='POST'){json(res,405,{error:'Usa la página de preferencias para confirmar esta acción.'});return true;}
  const ticket=admission();if(ticket.retryAfter){res.setHeader('Retry-After',String(ticket.retryAfter));json(res,429,{error:'Intenta de nuevo más tarde.'});return true;}
  try{
@@ -26,12 +26,13 @@ export async function handleSubscriptions(req,res,url,{json,body,rpc=emailConsen
    if(!Number.isSafeInteger(input.alert_id)||input.alert_id<1||typeof input.enabled!=='boolean'||!['instant','daily','weekly'].includes(input.frequency)){json(res,400,{error:'Preferencias inválidas.'});return true;}
    Object.assign(data,{alert_id:input.alert_id,enabled:input.enabled,frequency:input.frequency});
   }
-  const result=await rpc(action,data);json(res,200,result);
+  if(action==='erase'&&input.confirm!==true){json(res,400,{error:'Confirma la eliminación de tus datos de correo.'});return true;}
+  const result=action==='erase'?await erase(data):await rpc(action,data);json(res,200,result);
  }catch{json(res,503,{error:'No se pudo completar la acción. Intenta de nuevo o contacta al responsable del tratamiento.'});}
  finally{ticket.release();}
  return true;
 }
-export async function prepareConsent(alert,consent,{rpc=emailConsent}={}){
+export async function prepareConsent(alert,consent,{rpc=emailConsent,erase=eraseSubscription}={}){
  if(consent!==true)return {confirmationRequired:true,confirmationQueued:false};
  await rpc('request',{id:alert.id,version:CONSENT_VERSION});
  return {confirmationRequired:true,confirmationQueued:true};

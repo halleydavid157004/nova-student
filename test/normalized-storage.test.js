@@ -103,3 +103,10 @@ test('an alert committed during a catalog write is preserved in the baseline',as
   release();await pending;await storage.persist(state);
   assert.equal(saved.length,1,'the next flush must not reinsert an independently committed alert');
 });
+
+test('native erasure removes cache baseline without replaying deleted personal rows',async()=>{
+ const calls=[],initial={...blank(),alerts:[{id:1,email:'fixture@example.invalid',enabled:true},{id:2,email:'other@example.invalid',enabled:true}]};
+ const storage=createNormalizedStorage(async(name,args)=>{if(name==='nova_load_rows')return structuredClone(initial);calls.push({name,args});});
+ const state=await storage.load();storage.forgetAlerts([1]);state.alerts=state.alerts.filter(a=>a.id!==1);await storage.persist(state);assert.equal(calls.length,0);
+ state.alerts[0].enabled=false;await storage.persist(state);assert.deepEqual(calls[0].args.changes.map(c=>c.patch.id),[2]);
+});

@@ -9,7 +9,7 @@ async function call(action,{method='POST',input={},query='',form}={}){
  const calls=[],headers={};let result;
  const req={method,headers:{'content-type':form?'application/x-www-form-urlencoded':'application/json'},async *[Symbol.asyncIterator](){yield Buffer.from(form||'');}};
  const res={setHeader(k,v){headers[k]=v;}};
- const handled=await handleSubscriptions(req,res,new URL('https://nova-student-radar.onrender.com/api/subscriptions/'+action+query),{json:(_,status,data)=>{result={status,data};},body:async()=>input,rpc:async(op,data)=>{calls.push({op,data});return {ok:true};}});
+ const handled=await handleSubscriptions(req,res,new URL('https://nova-student-radar.onrender.com/api/subscriptions/'+action+query),{json:(_,status,data)=>{result={status,data};},body:async()=>input,rpc:async(op,data)=>{calls.push({op,data});return {ok:true};},erase:async data=>{calls.push({op:'erase',data});return {ok:true};}});
  return {handled,calls,headers,...result};
 }
 test('GET and malformed tokens never mutate subscription rows',async()=>{
@@ -31,4 +31,12 @@ test('saving without separate opt-in never requests email confirmation',async()=
  let calls=0;const rpc=async()=>{calls++;return {};};
  await prepareConsent({id:1},false,{rpc});assert.equal(calls,0);
  await prepareConsent({id:1},true,{rpc});assert.equal(calls,1);
+});
+
+test('erasure requires a preferences token and explicit confirmation; GET never erases',async()=>{
+ for(const input of [{token:token('confirm'),confirm:true},{token:token('unsubscribe'),confirm:true},{token:token('preferences')},{token:token('preferences'),confirm:'true'}]){
+  const r=await call('erase',{input});assert.equal(r.status,400);assert.equal(r.calls.length,0);
+ }
+ const get=await call('erase',{method:'GET',input:{token:token('preferences'),confirm:true}});assert.equal(get.status,405);assert.equal(get.calls.length,0);
+ const erased=await call('erase',{input:{token:token('preferences'),confirm:true,id:999}});assert.equal(erased.status,200);assert.deepEqual(erased.calls,[{op:'erase',data:{id:1,nonce}}]);
 });
