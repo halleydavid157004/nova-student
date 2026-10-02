@@ -83,9 +83,11 @@ function initTheme() {
   if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     document.body.classList.add('dark');
   }
+  document.documentElement.classList.remove('pre-dark');
 }
 
 $('#theme-toggle').addEventListener('click', () => {
+  document.documentElement.classList.remove('pre-dark');
   document.body.classList.toggle('dark');
   localStorage.setItem('nova-theme', document.body.classList.contains('dark') ? 'dark' : 'light');
 });
@@ -94,7 +96,8 @@ $('#theme-toggle').addEventListener('click', () => {
    INICIALIZACIÓN DE SELECTORES
    ============================================ */
 function loadCountries() {
-  const dn = new Intl.DisplayNames([navigator.language || 'es'], { type: 'region' });
+  let dn;
+  try { dn = new Intl.DisplayNames([navigator.language || 'es', 'es'], { type: 'region' }); } catch { dn = new Intl.DisplayNames(['es'], { type: 'region' }); }
   const sel = $('#country');
   ISO_CODES
     .map(code => [code, dn.of(code) || code])
@@ -107,11 +110,12 @@ function loadCountries() {
 async function loadMeta() {
   try {
     const m = await apiFetch('/api/meta');
+    Object.assign(categoryMeta, m.categoryMeta || {});
     m.categories.forEach(v => {
-      $('#category').insertAdjacentHTML('beforeend', `<option>${esc(v)}</option>`);
+      $('#category').insertAdjacentHTML('beforeend', `<option value="${esc(v)}">${esc(categoryMeta[v]?.label || v)}</option>`);
     });
     m.verifications.forEach(v => {
-      $('#verification').insertAdjacentHTML('beforeend', `<option>${esc(v)}</option>`);
+      $('#verification').insertAdjacentHTML('beforeend', `<option value="${esc(v)}">${esc(verLabel(v))}</option>`);
     });
   } catch (e) {
     console.error('loadMeta error:', e);
@@ -154,48 +158,59 @@ function badgeClass(type) {
 }
 
 function badgeLabel(type) {
-  return { free: '🎁 Gratis', discount: '💸 Descuento', credits: '☁️ Créditos', bundle: '📦 Pack' }[type] || '✨ Beneficio';
+  return { free: 'Gratis', discount: 'Descuento', credits: 'Créditos', bundle: 'Pack' }[type] || 'Beneficio';
 }
 
 /* ============================================
    TARJETA DE OFERTA
    ============================================ */
+const brandDomain = o => {
+  const domain = o.source_domain || (o.source_url ? (() => { try { return new URL(o.source_url).hostname.replace(/^www\./, ''); } catch { return ''; } })() : '');
+  return /^[a-z0-9.-]+$/i.test(domain) ? domain : '';
+};
+const brandHue = name => { let h = 0; for (const c of String(name)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+// Monogram first; premium.js swaps in the brand logo (Simple Icons, then the site icon) when available.
+function logoTile(o, size = '') {
+  const brand = o.brand || o.title || '?';
+  const words = String(brand).replace(/[^\p{L}\p{N} ]/gu, ' ').split(/\s+/).filter(Boolean);
+  const initials = (words.length > 1 ? words[0][0] + words[1][0] : (words[0] || '?').slice(0, 2)).toUpperCase();
+  return `<span class="lg mg ${size}" data-brand="${esc(brand)}" data-domain="${esc(brandDomain(o))}" style="--h:${brandHue(brand)}" aria-hidden="true">${esc(initials)}</span>`;
+}
+const catLabel = key => categoryMeta[key]?.label || key || '';
+const VERIFICATION_LABELS = {'None':'Sin verificación','Educational email':'Correo educativo','Institutional':'Licencia institucional','Self-enrollment':'Inscripción libre','Education verification':'Verificación educativa','GitHub Education':'GitHub Education','SheerID':'SheerID','ISIC verification':'Carné ISIC'};
+const verLabel = v => String(v || '').split(' / ').map(x => VERIFICATION_LABELS[x] || x.replace('Educational email','Correo educativo').replace('documents','documentos').replace('Self-declaration','autodeclaración')).join(' / ');
+const verifiedStamp = o => { const v = Date.parse(o.liveness_verified_at || o.verified_at); return Number.isFinite(v) ? new Date(v) : null; };
+
 function renderCard(o) {
   const isSaved = saved.has(o.id);
   const selectedCountry=$('#country')?.value || 'ALL';
   const foreign=selectedCountry!=='ALL'&&!(o.countries||[]).includes('GLOBAL')&&!(o.countries||[]).includes(selectedCountry);
-  const initials = (o.brand || o.title || '?').slice(0, 2).toUpperCase();
-  const domain = o.source_domain || (o.source_url ? (() => { try { return new URL(o.source_url).hostname.replace(/^www\./, ''); } catch { return ''; } })() : '');
-  const logoDomain=/^[a-z0-9.-]+$/i.test(domain)?domain:'';
-  const logoHtml = logoDomain
-    ? `<img src="https://icon.horse/icon/${encodeURIComponent(logoDomain)}" alt="" class="brand-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" /><div class="brand-initials" style="display:none;" aria-hidden="true">${esc(initials)}</div>`
-    : `<div class="brand-initials" aria-hidden="true">${esc(initials)}</div>`;
-
+  const stamp = verifiedStamp(o);
+  const places = (o.countries || []).map(regionLabel);
   return `
     <article class="card" data-id="${o.id}" role="listitem" tabindex="0" aria-label="${esc(o.title)}">
       <div class="card-top">
-        <div class="brandmark">${logoHtml}</div>
-        <button
-          class="save-btn ${isSaved ? 'saved' : ''}"
-          data-save="${o.id}"
-          aria-label="${isSaved ? 'Quitar de guardadas' : 'Guardar oferta'}"
-          title="${isSaved ? 'Quitar de guardadas' : 'Guardar'}"
-        >${isSaved ? '♥' : '♡'}</button>
+        <div class="brandmark">${logoTile(o)}</div>
+        <div class="card-head">
+          <h3>${esc(o.title)}</h3>
+          <div class="card-brand">${esc(o.brand || '')}${o.brand ? ' · ' : ''}${esc(catLabel(o.category))}</div>
+        </div>
+        <button class="save-btn ${isSaved ? 'saved' : ''}" data-save="${o.id}" aria-label="${isSaved ? 'Quitar de guardadas' : 'Guardar oferta'}" title="${isSaved ? 'Quitar de guardadas' : 'Guardar'}">${isSaved ? '♥' : '♡'}</button>
       </div>
-      <span class="badge ${badgeClass(o.offer_type)}">${badgeLabel(o.offer_type)}</span>
-      ${highlights(o).map(h=>`<span class="meta-tag" title="${esc(h.reason)}">${esc(h.label)}</span>`).join(' ')}
-      <h3>${esc(o.title)}</h3>
-      ${o.benefit?`<p class="card-benefit">${esc(o.benefit)}</p>`:''}
-      ${o.summary ? `<p class="card-summary">${esc(o.summary)}</p>` : ''}
+      ${o.benefit ? `<p class="card-benefit">${esc(o.benefit)}</p>` : o.summary ? `<p class="card-benefit">${esc(o.summary)}</p>` : ''}
       <div class="card-meta">
-        <span class="meta-tag">${esc(o.category)}</span>
-        <span class="meta-tag">${esc(o.verification)}</span>
+        <span class="badge ${badgeClass(o.offer_type)}">${badgeLabel(o.offer_type)}</span>
+        ${highlights(o).map(h=>`<span class="meta-tag hl-${esc(h.key)}" title="${esc(h.reason)}">${esc(h.label)}</span>`).join('')}
+        <span class="meta-tag">${esc(verLabel(o.verification))}</span>
         ${o.official ? '<span class="meta-tag official">✓ Oficial</span>' : ''}
-        <span class="meta-tag">🌍 ${esc((o.countries || []).map(regionLabel).join(', ') || 'Países por confirmar')}</span>
-        ${foreign?'<span class="meta-tag">Otro país: comprueba elegibilidad</span>':''}
+        <span class="meta-tag" title="${esc(places.join(', '))}">${esc(places.length > 2 ? places.slice(0, 2).join(', ') + ' +' + (places.length - 2) : places.join(', ') || 'Países por confirmar')}</span>
+        ${foreign?'<span class="meta-tag warn">Otro país: comprueba elegibilidad</span>':''}
       </div>
-      <div class="card-verification">${o.liveness_status&&o.liveness_status!=='active'?'Comprobación en revisión':o.liveness_verified_at&&o.source_excerpt?'Comprobada con evidencia':'Última comprobación'}${Number.isFinite(Date.parse(o.liveness_verified_at||o.verified_at))?` · <time datetime="${esc(new Date(o.liveness_verified_at||o.verified_at).toISOString())}">${esc(new Date(o.liveness_verified_at||o.verified_at).toLocaleDateString('es'))}</time>`:''}</div>
-      <span class="card-detail-link" aria-hidden="true">Ver beneficio y requisitos →</span>
+      <div class="card-foot">
+        <div class="card-verification">${o.liveness_status&&o.liveness_status!=='active'?'Comprobación en revisión':o.liveness_verified_at&&o.source_excerpt?'Comprobada con evidencia':'Última comprobación'}${stamp?` · <time datetime="${esc(stamp.toISOString())}">${esc(stamp.toLocaleDateString('es'))}</time>`:''}</div>
+        <button class="cmp-btn" type="button" data-compare="${o.id}" aria-pressed="false" aria-label="Comparar ${esc(o.title)}" title="Comparar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M12 2v20"/></svg></button>
+        <span class="card-detail-link" aria-hidden="true">Ver detalles →</span>
+      </div>
     </article>`;
 }
 
@@ -246,7 +261,7 @@ function bindCards(root) {
   // Click en tarjeta → abrir detalle
   root.querySelectorAll('.card').forEach(c => {
     c.addEventListener('click', e => {
-      if (e.target.closest('.save-btn')) return;
+      if (e.target.closest('.save-btn, .cmp-btn')) return;
       openOffer(Number(c.dataset.id));
     });
     c.addEventListener('keydown', e => {
@@ -398,81 +413,69 @@ async function openOffer(id) {
 
   try {
     const { offer: o } = await apiFetch(`/api/offers/${id}`);
-    const initials = (o.brand || o.title || '?').slice(0, 2).toUpperCase();
-    const domain = o.source_domain || (o.source_url ? (() => { try { return new URL(o.source_url).hostname.replace(/^www\./, ''); } catch { return ''; } })() : '');
-    const logoDomain=/^[a-z0-9.-]+$/i.test(domain)?domain:'';
-  const logoHtml = logoDomain
-      ? `<img src="https://icon.horse/icon/${encodeURIComponent(logoDomain)}" alt="" class="brand-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" /><div class="brand-initials" style="display:none;" aria-hidden="true">${esc(initials)}</div>`
-      : `<div class="brand-initials" aria-hidden="true">${esc(initials)}</div>`;
-
+    const stamp = verifiedStamp(o);
+    const isSaved = saved.has(o.id);
     content.innerHTML = `
-      <div class="offer-detail-header">
-        <div class="modal-kicker">${esc(o.brand)} · ${esc(o.category)}</div>
-        <div class="offer-detail-brandmark">${logoHtml}</div>
-        <div>
-          <span class="badge ${badgeClass(o.offer_type)}">${badgeLabel(o.offer_type)}</span>
-          <h2 class="offer-detail-title" id="modalTitle">${esc(o.title)}</h2>
-          <p class="offer-detail-summary">${esc(o.summary)}</p>
+      <div class="offer-detail-header" style="--h:${brandHue(o.brand || o.title)}">
+        <div class="od-head">
+          <div class="offer-detail-brandmark">${logoTile(o, 'xl')}</div>
+          <div class="od-title">
+            <div class="modal-kicker">${esc(o.brand)} · ${esc(catLabel(o.category))}</div>
+            <h2 class="offer-detail-title" id="modalTitle">${esc(o.title)}</h2>
+            <div class="od-badges"><span class="badge ${badgeClass(o.offer_type)}">${badgeLabel(o.offer_type)}</span>${highlights(o).map(h=>`<span class="meta-tag hl-${esc(h.key)}" title="${esc(h.reason)}">${esc(h.label)}</span>`).join('')}${o.official ? '<span class="meta-tag official">✓ Fuente oficial</span>' : ''}</div>
+          </div>
+        </div>
+        ${o.summary ? `<p class="offer-detail-summary">${esc(o.summary)}</p>` : ''}
+        <div class="od-actions">
+          <a class="source-cta" href="${esc(safeUrl(o.source_url))}" target="_blank" rel="noopener noreferrer">
+            ${o.official ? 'Ir a la fuente oficial' : 'Ver fuente para verificar la oferta'}
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
+          </a>
+          <button class="save-btn od-save ${isSaved ? 'saved' : ''}" type="button" data-save="${o.id}" aria-label="${isSaved ? 'Quitar de guardadas' : 'Guardar oferta'}">${isSaved ? '♥' : '♡'}</button>
+          <button class="btn-ghost" type="button" data-compare="${o.id}" aria-pressed="false">Comparar</button>
+          <button class="btn-ghost" type="button" data-share="${o.id}">Copiar enlace</button>
         </div>
       </div>
 
-      <div class="offer-section">
-        <h3>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          Qué obtienes
-        </h3>
-        <div class="benefit-highlight">${esc(o.benefit)}</div>
-      </div>
-
-      ${o.requirements?.length ? `
-      <div class="offer-section">
-        <h3>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          Requisitos
-        </h3>
-        ${o.requirements.map(r => `
-          <div class="requirement-item">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-            ${esc(r)}
-          </div>`).join('')}
-      </div>` : ''}
-
-      ${o.steps?.length ? `
-      <div class="offer-section">
-        <h3>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-          Cómo obtenerla
-        </h3>
-        <ol class="steps-list">
-          ${o.steps.map(s => `<li>${esc(s)}</li>`).join('')}
-        </ol>
-      </div>` : ''}
-
-      <div class="offer-section">
-        <h3>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          Detalles
-        </h3>
-        <div class="offer-info-row">
-          <span class="info-pill">🔐 ${esc(o.verification)}</span>
-          <span class="info-pill">${o.requires_card===true ? '💳 Puede requerir tarjeta' : o.requires_card===false?'🚫 Sin tarjeta':'💳 Tarjeta: consultar fuente'}</span>
-          <span class="info-pill">📅 ${o.liveness_verified_at ? 'Verificada con evidencia' : 'Última comprobación'}: ${new Date(o.liveness_verified_at || o.verified_at).toLocaleDateString('es', { dateStyle: 'medium' })}</span>
-          ${o.liveness_status && o.liveness_status !== 'active' ? '<span class="info-pill">🔎 Necesita revisión</span>' : ''}
-          ${o.official ? '<span class="info-pill">✅ Fuente oficial</span>' : ''}
-          <span class="info-pill">🌍 ${esc((o.countries || []).map(regionLabel).join(', ') || 'Países por confirmar')}</span>
+      <div class="od-grid">
+        <div class="od-main">
+          <div class="offer-section">
+            <h3>Qué obtienes</h3>
+            <div class="benefit-highlight">${esc(o.benefit)}</div>
+          </div>
+          ${o.requirements?.length ? `
+          <div class="offer-section">
+            <h3>Requisitos</h3>
+            ${o.requirements.map(r => `<div class="requirement-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>${esc(r)}</div>`).join('')}
+          </div>` : ''}
+          ${o.steps?.length ? `
+          <div class="offer-section">
+            <h3>Cómo obtenerla</h3>
+            <ol class="steps-list">${o.steps.map(st => `<li>${esc(st)}</li>`).join('')}</ol>
+          </div>` : ''}
+          <div class="offer-section"><h3>Acceso desde otros países</h3><p>Comprueba residencia, matrícula y método de verificación en los requisitos y la fuente. Una VPN no sustituye esos requisitos; utiliza solo métodos expresamente permitidos por el proveedor.</p></div>
+          ${o.liveness_verified_at && o.source_excerpt ? `<div class="offer-section" id="offerEvidence"><h3>Evidencia de la última verificación</h3><blockquote>${esc(o.source_excerpt)}</blockquote></div>` : ''}
         </div>
-      </div>
-
-      <div class="offer-section"><h3>Acceso desde otros países</h3><p>Comprueba residencia, matrícula y método de verificación en los requisitos y la fuente. Una VPN no sustituye esos requisitos; utiliza solo métodos expresamente permitidos por el proveedor.</p></div>
-      ${o.liveness_verified_at && o.source_excerpt ? `<div class="offer-section" id="offerEvidence"><h3>Evidencia de la última verificación</h3><blockquote>${esc(o.source_excerpt)}</blockquote></div>` : ''}
-      <form id="offerReportForm" class="offer-section"><label for="offerReportReason">¿Qué ocurrió al intentar reclamarla?</label>
-        <select id="offerReportReason"><option value="worked">Me funcionó</option><option value="expired">La oferta terminó</option><option value="changed">Las condiciones cambiaron</option><option value="broken">El enlace no funciona</option></select>
-        <button class="btn-primary" type="submit">Enviar reporte</button>
-      </form>
-      <a class="source-cta" href="${esc(safeUrl(o.source_url))}" target="_blank" rel="noopener noreferrer">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        ${o.official ? 'Ir a la fuente oficial' : 'Ver fuente para verificar la oferta'}
-      </a>`;
+        <aside class="od-side">
+          <dl class="facts">
+            <div><dt>Verificación</dt><dd>${esc(verLabel(o.verification))}</dd></div>
+            <div><dt>Tarjeta</dt><dd>${o.requires_card===true ? 'Puede requerir' : o.requires_card===false ? 'No requiere' : 'Consultar fuente'}</dd></div>
+            <div><dt>${o.liveness_verified_at ? 'Verificada con evidencia' : 'Última comprobación'}</dt><dd>${stamp ? esc(stamp.toLocaleDateString('es', { dateStyle: 'medium' })) : 'Pendiente'}</dd></div>
+            <div><dt>Estado</dt><dd>${o.liveness_status && o.liveness_status !== 'active' ? 'Necesita revisión' : 'Activa'}</dd></div>
+            <div><dt>Países</dt><dd>${esc((o.countries || []).map(regionLabel).join(', ') || 'Por confirmar')}</dd></div>
+            ${o.expires_at ? `<div><dt>Vence</dt><dd>${esc(new Date(o.expires_at).toLocaleDateString('es', { dateStyle: 'medium' }))}</dd></div>` : ''}
+          </dl>
+          <form id="offerReportForm" class="offer-section report-box"><label for="offerReportReason">¿Qué ocurrió al intentar reclamarla?</label>
+            <select id="offerReportReason"><option value="worked">Me funcionó</option><option value="expired">La oferta terminó</option><option value="changed">Las condiciones cambiaron</option><option value="broken">El enlace no funciona</option></select>
+            <button class="btn-secondary" type="submit">Enviar reporte</button>
+          </form>
+        </aside>
+      </div>`;
+    bindCards(content);
+    content.querySelector('[data-share]')?.addEventListener('click', async () => {
+      const link = `${location.origin}/?offer=${o.id}`;
+      try { await navigator.clipboard.writeText(link); toast('Enlace copiado', 'success'); } catch { toast(link); }
+    });
 
     $('#offerReportForm').addEventListener('submit',async event=>{
       event.preventDefault();const button=event.target.querySelector('button');button.disabled=true;
@@ -1061,6 +1064,26 @@ function initNovaAI() {
     if (label) label.textContent = data.enabled ? data.model : 'No configurada';
   }).catch(() => {});
 }
+
+window.NovaApp = {
+  openOffer,
+  search,
+  isSaved: id => saved.has(id),
+  savedIds: () => [...saved],
+  async saveMany(ids) {
+    let added = 0;
+    for (const id of ids) {
+      if (saved.has(id)) continue;
+      try { if (accountClient) await accountClient.favorite(id, true); saved.add(id); added++; } catch {}
+    }
+    if (!accountClient) localStorage.setItem('nova-saved-offers', JSON.stringify([...saved]));
+    updateSavedBadge(); render(offers);
+    if (currentView === 'saved') await loadSaved();
+    return added;
+  },
+  showView(view) { $(`.nav-btn[data-view="${view}"]`)?.click(); },
+  toast,
+};
 
 init().catch(console.error);
 
