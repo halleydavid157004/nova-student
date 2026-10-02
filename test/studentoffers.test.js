@@ -109,3 +109,10 @@ test('curated official pages are added once, as official sources with safe URLs'
   const known = new Set(['Development', 'Cloud', 'Design', 'Creative', 'Productivity', 'AI', 'Entertainment', 'Education', 'Finance', 'Hardware', 'Security', 'Hosting', 'Streaming', 'Shopping', 'Travel', 'Health', 'Gaming']);
   assert.ok(CURATED_SOURCES.every(([, , category, countries]) => known.has(category) && Array.isArray(countries) && countries.length));
 });
+
+test('curated list covers the main Latin American countries with local official pages', () => {
+  for (const code of ['CO', 'MX', 'CL', 'AR', 'PE', 'BR'])
+    assert.ok(CURATED_SOURCES.some(([, , , countries]) => countries.includes(code)), `missing ${code}`);
+  const latam = CURATED_SOURCES.filter(([, , , countries]) => countries.some(c => ['CO', 'MX', 'CL', 'AR', 'PE'].includes(c)));
+  assert.ok(latam.length >= 12);
+});
