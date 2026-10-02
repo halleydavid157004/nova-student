@@ -1,4 +1,4 @@
-import {configuredClient} from '../accounts/client.js?v=2';
+import {configuredClient} from '../accounts/client.js?v=3';
 import {reviewDiff} from './policy.js';
 const $=id=>document.getElementById(id),status=message=>{$('admin-status').textContent=message;};
 const titles={queue:'Cola de revisión',sources:'Fuentes',audit:'Registro de acciones'};
@@ -14,6 +14,7 @@ function reason(form){const label=node('label','Motivo de la decisión (10 a 500
 function button(form,text,action){const b=node('button',text);b.type='submit';b.name='action';b.value=action;form.append(b);return b;}
 function offerCard(item){
  const o=item.offer,article=node('article');article.append(node('h3',o.title),link(o.source_url),node('p',`Estado: ${o.status} · Puntaje: ${item.check?.score??'sin datos'} · Verificación: ${item.check?.checked_at??'sin datos'}`));
+ if(item.auto_approved)article.append(node('p','Publicada automáticamente por el radar (fuente oficial con evidencia fuerte). Recházala si no corresponde.'));
  if(item.version?.evidence)article.append(node('blockquote',item.version.evidence));
  const details=node('details');details.append(node('summary','Diferencias entre versión aprobada y extraída'));
  const table=node('table'),head=node('tr');for(const value of ['Campo','Aprobado','Extraído'])head.append(node('th',value));table.append(head);
@@ -26,7 +27,8 @@ function offerCard(item){
  const edit=node('details');edit.append(node('summary','Editar título y pasos'));const editForm=node('form'),titleLabel=node('label','Título'),title=node('input');title.value=o.title;title.required=true;title.maxLength=200;titleLabel.append(title);editForm.append(titleLabel);const stepsLabel=node('label','Pasos (uno por línea)'),steps=node('textarea');steps.value=(o.steps||[]).join('\n');steps.maxLength=10000;stepsLabel.append(steps);editForm.append(stepsLabel);const editReason=reason(editForm);button(editForm,'Guardar edición','edit');editForm.addEventListener('submit',async e=>{e.preventDefault();await act({action:'edit',id:o.id,expected_updated_at:o.updated_at,title:title.value,steps:steps.value.split('\n').map(s=>s.trim()).filter(Boolean),reason:editReason.value});});edit.append(editForm);article.append(edit);return article;
 }
 function sourceCard(s){const article=node('article');article.append(node('h3',s.name),link(s.url),node('p',s.enabled?'Escaneo habilitado':'Escaneo deshabilitado'));const form=node('form'),why=reason(form);button(form,s.enabled?'Deshabilitar':'Habilitar','source');form.addEventListener('submit',async e=>{e.preventDefault();await act({action:'source',id:s.id,expected_updated_at:s.updated_at,enabled:!s.enabled,reason:why.value});});article.append(form);return article;}
-function auditCard(a){const article=node('article');article.append(node('h3',a.action),node('p',`${a.created_at} · Oferta ${a.offer_id??'—'} · Fuente ${a.source_id??'—'}`),node('p',a.reason),node('pre',a.details));return article;}
+const ACTION_LABELS={approve:'Aprobada',reject:'Rechazada',edit:'Editada',source:'Fuente',auto_approve:'Aprobada automáticamente'};
+function auditCard(a){const article=node('article');article.append(node('h3',ACTION_LABELS[a.action]||a.action),node('p',`${a.created_at} · Oferta ${a.offer_id??'—'} · Fuente ${a.source_id??'—'}`),node('p',a.reason),node('pre',a.details));return article;}
 async function load(){
  $('more').hidden=true;status('Consultando '+titles[section].toLowerCase()+'…');
  const data=await request();$('section-title').textContent=titles[section];$('items').replaceChildren(...data.items.map(section==='queue'?offerCard:section==='sources'?sourceCard:auditCard));$('admin-panel').hidden=false;

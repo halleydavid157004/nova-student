@@ -2,7 +2,7 @@ import {processAccountDeletions} from './services/account-deletion.js';
 import {scanAll, discoverAll, getBraveDiscoveryStatus} from './services/crawler.js';
 import {sendDueDigests,sendPendingConfirmations} from './services/email.js';
 import crypto from 'node:crypto';
-import {db,save,flushSave,claimWorker,assertWorker,finishWorker,setWorkerContext,workerMaintenance} from './db.js';
+import {db,save,flushSave,claimWorker,assertWorker,finishWorker,setWorkerContext,workerMaintenance,autoApprove} from './db.js';
 import {publicCatalog} from './services/catalog-export.js';
 import {radarWindow, nextRadarRun} from './services/brave.js';
 
@@ -52,6 +52,8 @@ async function performCycle({sourceOptions,force,validationOnly,onCatalog}) {
     const discovery = validationOnly?{discovered:0}:await discoverAll(sourceOptions);
     await assertWorker(lease.token);
     const scan = await scanAll({...sourceOptions,beforeBatch:()=>assertWorker(lease.token)});
+    await assertWorker(lease.token);
+    const autoApproval=await autoApprove().catch(()=>({enabled:false,approved:[],error:'auto_approve_failed'}));
     const catalog=publicCatalog(db.offers);
     await onCatalog?.(catalog);
     const confirmations=validationOnly?[]:await sendPendingConfirmations({beforeSend:()=>assertWorker(lease.token)});
@@ -65,7 +67,9 @@ async function performCycle({sourceOptions,force,validationOnly,onCatalog}) {
       elapsed: `${((Date.now() - startedAt) / 1000).toFixed(1)}s`,
       discovery: {
         newSources: discovery.discovered || 0,
+        curated: discovery.curated?.discovered || 0,
         studentOffers: discovery.studentOffers?.discovered || 0,
+        studentOffersMode: discovery.studentOffers?.mode || null,
         brave: discovery.brave?.discovered || 0,
         github: discovery.github?.discovered || 0,
       },
@@ -76,6 +80,7 @@ async function performCycle({sourceOptions,force,validationOnly,onCatalog}) {
         unavailable: scan.filter(item => item.status === 404 || item.status === 410).length,
         ok: scan.filter(item => item.status >= 200 && item.status < 400).length,
       },
+      autoApproval: {enabled: autoApproval.enabled, approved: autoApproval.approved.length, skipped: autoApproval.skipped || {}, error: autoApproval.error || null},
       db: {offers: db.offers.length, sources: db.sources.length},
       catalog:{offers:catalog.offers.length},confirmations:{sent:confirmations.filter(x=>x.sent).length,errors:confirmations.filter(x=>x.error).length},digests:{sent:deliveries.filter(x=>x.sent).length,skipped:deliveries.filter(x=>x.skipped).length,errors:deliveries.filter(x=>x.error).length},
       brave:{used:getBraveDiscoveryStatus().budget?.used||0},engine:radarEngine(),attempt:lease.attempt,

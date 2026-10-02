@@ -139,5 +139,13 @@ export function createNormalizedStorage(rpc) {
       return result;
     },
     submitReport(offerId,reporter,reason) {return rpc('nova_submit_report',{offer_id:offerId,reporter,report_reason:reason});},
+    async autoApprove(input){
+      const result=await rpc('nova_auto_approve',{input});
+      for(const row of result?.offers||[]){
+        const index=baseline.offers.findIndex(o=>o.id===row.id);
+        if(index>=0)baseline.offers[index]=structuredClone(row);
+      }
+      return result;
+    },
   };
 }

@@ -1,4 +1,4 @@
-import {configuredClient} from './client.js?v=2';
+import {configuredClient} from './client.js?v=3';
 import {countryOptions} from '../search/countries.js';
 const $=id=>document.getElementById(id),status=message=>{$('account-status').textContent=message;};
 const code=new URL(location.href).searchParams.get('code');
@@ -14,7 +14,7 @@ async function listings(){
  for(const search of searches){const li=document.createElement('li'),remove=document.createElement('button');li.append(document.createTextNode(search.query+' · '+search.country+' '));remove.textContent='Eliminar búsqueda';remove.addEventListener('click',()=>perform(remove,async()=>{await client.table('user_saved_searches',{method:'DELETE',query:'?id=eq.'+encodeURIComponent(search.id)+'&user_id=eq.'+active.user.id});await listings();}));li.append(remove);$('searches').append(li);}
 }
 async function member(){
- const active=await client.current();$('signin').hidden=!!active;$('member').hidden=!active;
+ const active=await client.current();$('signin').hidden=!!active;$('oauth').hidden=!!active||!client.providers.includes('github');$('member').hidden=!active;
  if(!active){status('Inicia sesión para sincronizar tus datos.');return;}
  let guest=[];try{guest=JSON.parse(localStorage.getItem('nova-saved-offers')||'[]');}catch{}
  if(Array.isArray(guest)&&guest.length){await client.mergeFavorites(guest);localStorage.removeItem('nova-saved-offers');}
@@ -24,8 +24,9 @@ async function member(){
 }
 async function perform(button,action){button.disabled=true;try{await action();}catch(error){status(error.message);}finally{button.disabled=false;}}
 $('signin').addEventListener('submit',event=>{event.preventDefault();const button=event.currentTarget.querySelector('button');perform(button,async()=>{await client.signIn($('email').value,location.origin+'/account.html');status('Solicitud aceptada. Revisa tu correo y abre el enlace en este navegador.');});});
-$('signout').addEventListener('click',event=>perform(event.currentTarget,async()=>{try{await client.signOut();}finally{$('member').hidden=true;$('signin').hidden=false;$('favorites').replaceChildren();$('searches').replaceChildren();$('profile').reset();status('Sesión cerrada en esta pestaña.');}}));
+$('github-signin').addEventListener('click',event=>perform(event.currentTarget,async()=>{location.assign(await client.oauthUrl('github',location.origin+'/account.html'));}));
+$('signout').addEventListener('click',event=>perform(event.currentTarget,async()=>{try{await client.signOut();}finally{$('member').hidden=true;$('signin').hidden=false;$('oauth').hidden=!client.providers.includes('github');$('favorites').replaceChildren();$('searches').replaceChildren();$('profile').reset();status('Sesión cerrada en esta pestaña.');}}));
 $('profile').addEventListener('submit',event=>{event.preventDefault();perform(event.currentTarget.querySelector('button'),async()=>{const active=await client.current();await client.table('user_profiles',{method:'POST',query:'?on_conflict=user_id',headers:{Prefer:'resolution=merge-duplicates'},body:{user_id:active.user.id,country:$('profile-country').value||null,career:$('career').value.trim(),email_type:$('email-type').value}});status('Perfil guardado.');});});
 $('saved-search').addEventListener('submit',event=>{event.preventDefault();perform(event.currentTarget.querySelector('button'),async()=>{const active=await client.current();await client.table('user_saved_searches',{method:'POST',body:{user_id:active.user.id,query:$('query').value,country:$('search-country').value}});await listings();status('Búsqueda guardada. El envío de correos aún no está activado.');});});
 $('delete-account').addEventListener('submit',event=>{event.preventDefault();perform(event.currentTarget.querySelector('button'),async()=>{const result=await client.deleteAccount($('delete-confirm').value);localStorage.removeItem('nova-saved-offers');$('member').hidden=true;$('signin').hidden=false;$('favorites').replaceChildren();$('searches').replaceChildren();$('profile').reset();$('delete-account').reset();$('signin').reset();status(result.status==='completed'?'Cuenta y datos eliminados. Tus sesiones fueron cerradas.':'Eliminación registrada y acceso a datos bloqueado. El radar completará el borrado de Auth pendiente.');});});
-try{client=await configuredClient();if(!client)status('Las cuentas todavía no están activadas. Tus favoritos siguen disponibles en este dispositivo.');else{if(code)await client.callback(code);else await client.restore();await member();}}catch(error){status(error.message);if(client){$('signin').hidden=false;$('member').hidden=true;}}
+try{client=await configuredClient();if(!client)status('Las cuentas todavía no están activadas. Tus favoritos siguen disponibles en este dispositivo.');else{if(code)await client.callback(code);else await client.restore();await member();}}catch(error){status(error.message);if(client){$('signin').hidden=false;$('oauth').hidden=!client.providers.includes('github');$('member').hidden=true;}}

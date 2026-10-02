@@ -1,0 +1,111 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+
+const dir = mkdtempSync(path.join(tmpdir(), 'nova-so-'));
+process.env.DATABASE_PATH = path.join(dir, 'db.json');
+const {db} = await import('../src/db.js');
+const {createSourceClient} = await import('../src/services/source-http.js');
+const so = await import('../src/services/studentoffers.js');
+const {CURATED_SOURCES} = await import('../src/data/curated-sources.js');
+
+// Excerpt of https://www.studentoffers.co/robots.txt (2026-10-02): generic agents may not use /api/.
+const ROBOTS = 'User-agent: GPTBot\nAllow: /\n\nUser-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nDisallow: /_next/\n';
+const SITEMAP = `<?xml version="1.0"?><urlset>
+<url><loc>https://www.studentoffers.co/</loc></url>
+<url><loc>https://www.studentoffers.co/tools</loc></url>
+<url><loc>https://www.studentoffers.co/ai-and-machine-learning</loc></url>
+<url><loc>https://www.studentoffers.co/offer/figma</loc></url>
+<url><loc>https://www.studentoffers.co/offer/aws-educate</loc></url>
+<url><loc>https://www.studentoffers.co/offer/some-deal</loc></url>
+<url><loc>https://www.studentoffers.co/offer/figma</loc></url>
+</urlset>`;
+const page = (h1, href, label = 'Claim', extra = '') => `<html><head><title>${h1}: copy we must not keep | StudentOffers.co</title></head><body>
+<a href="/tools">Tools</a><a href="https://twitter.com/studentoffers">Twitter</a>
+<h1>${h1}</h1><p>Marketing description that must never be copied.</p>${extra}
+<a class="btn" href="${href}">${label}</a></body></html>`;
+const PAGES = {
+  '/offer/figma': page('Figma', 'https://www.figma.com/education/?utm_source=studentoffers&ref=so'),
+  '/offer/aws-educate': page('AWS Educate', 'https://aws.amazon.com/education/awseducate/'),
+  '/offer/some-deal': page('Some Deal', 'https://www.myunidays.com/US/en-US/partners/some/view', 'Get the deal'),
+};
+
+function fakeSite(log) {
+  return createSourceClient({wait: async () => {}, request: async url => {
+    const u = new URL(url); log.push(u.pathname);
+    if (u.pathname === '/robots.txt') return {status: 200, headers: {}, body: ROBOTS};
+    if (u.pathname === '/sitemap.xml') return {status: 200, headers: {}, body: SITEMAP};
+    if (PAGES[u.pathname]) return {status: 200, headers: {}, body: PAGES[u.pathname]};
+    if (u.pathname.startsWith('/api/')) throw new Error('API must not be requested while robots.txt disallows it');
+    return {status: 404, headers: {}, body: ''};
+  }});
+}
+
+test('parsers keep only brand and official link, never page copy', () => {
+  assert.deepEqual(so.offerPaths(so.parseSitemap(SITEMAP)), ['/offer/figma', '/offer/aws-educate', '/offer/some-deal']);
+  const lead = so.parseOfferPage(PAGES['/offer/figma'], 'https://www.studentoffers.co/offer/figma');
+  assert.equal(lead.brand, 'Figma');
+  assert.equal(lead.url, 'https://www.figma.com/education/', 'tracking parameters removed');
+  assert.ok(!JSON.stringify(lead).includes('Marketing'), 'no descriptive text is kept');
+  assert.equal(so.parseOfferPage('<h1>Only text</h1>'), null);
+  assert.equal(so.brandOwnsDomain('Figma', 'https://www.figma.com/education/'), true);
+  assert.equal(so.brandOwnsDomain('AWS Educate', 'https://aws.amazon.com/education/awseducate/'), true);
+  assert.equal(so.brandOwnsDomain('Some Deal', 'https://www.myunidays.com/x'), false, 'aggregators are never official');
+  assert.equal(so.brandOwnsDomain('Notion', 'https://bit.ly/abc'), false);
+});
+
+test('discovery respects robots.txt, adds leads once and resumes with a cursor', async () => {
+  db.sources.length = 0; db.events.length = 0; db.runtime = {};
+  const log = [];
+  const client = fakeSite(log);
+  const first = await so.discoverStudentOffersLeads({client, limit: 2, now: Date.parse('2026-10-02T00:00:00Z')});
+  assert.equal(first.mode, 'sitemap');
+  assert.ok(!log.some(p => p.startsWith('/api/')), 'API not requested');
+  assert.equal(first.discovered, 2);
+  assert.equal(first.official, 2, 'figma.com and aws.amazon.com belong to the brand');
+  assert.equal(db.runtime.studentOffers.cursor, 2);
+  const second = await so.discoverStudentOffersLeads({client, limit: 2, now: Date.parse('2026-10-02T06:00:00Z')});
+  assert.equal(second.discovered, 1);
+  const unidays = db.sources.find(s => s.url.includes('myunidays'));
+  assert.equal(unidays.official, false, 'aggregator claim link stays an unofficial lead');
+  assert.equal(unidays.lead_ref, '/offer/some-deal');
+  const again = await so.discoverStudentOffersLeads({client, limit: 5, now: Date.parse('2026-10-02T12:00:00Z')});
+  assert.equal(again.discovered, 0, 'no duplicates');
+  assert.equal(log.filter(p => p === '/sitemap.xml').length, 1, 'sitemap cached for a day');
+  for (const s of db.sources) assert.ok(!/Marketing|copy we must not keep/.test(JSON.stringify(s)));
+});
+
+test('API is used only when robots.txt allows it for this agent', async () => {
+  db.sources.length = 0; db.runtime = {};
+  const client = createSourceClient({wait: async () => {}, request: async url => {
+    const u = new URL(url);
+    if (u.pathname === '/robots.txt') return {status: 200, headers: {}, body: 'User-agent: *\nAllow: /\n'};
+    if (u.pathname === '/api/offers') return {status: 200, headers: {}, body: JSON.stringify({offers: [{slug: 'notion', brand: 'Notion', claim_url: 'https://www.notion.com/product/notion-for-education', description: 'do not keep'}]})};
+    return {status: 404, headers: {}, body: ''};
+  }});
+  const r = await so.discoverStudentOffersLeads({client});
+  assert.equal(r.mode, 'api');
+  assert.equal(r.discovered, 1);
+  assert.equal(db.sources[0].official, true);
+  assert.ok(!JSON.stringify(db.sources[0]).includes('do not keep'));
+});
+
+test('switch and limits', async () => {
+  assert.deepEqual(await so.discoverStudentOffersLeads({env: {STUDENTOFFERS_DISCOVERY: 'false'}}), {enabled: false, discovered: 0});
+  assert.equal(so.pagesPerCycle({STUDENTOFFERS_PAGES_PER_CYCLE: '500'}), 60);
+  assert.equal(so.pagesPerCycle({}), 25);
+});
+
+test('curated official pages are added once, as official sources with safe URLs', () => {
+  db.sources.length = 0;
+  const first = so.ensureCuratedSources();
+  assert.ok(first.discovered > 80);
+  assert.equal(so.ensureCuratedSources().discovered, 0, 'idempotent');
+  assert.ok(db.sources.every(s => s.official === true && s.url.startsWith('https://') && s.discovered_via === 'Nova curated official page'));
+  const urls = CURATED_SOURCES.map(r => r[1]);
+  assert.equal(new Set(urls).size, urls.length, 'no duplicate URLs in the curated list');
+  const known = new Set(['Development', 'Cloud', 'Design', 'Creative', 'Productivity', 'AI', 'Entertainment', 'Education', 'Finance', 'Hardware', 'Security', 'Hosting', 'Streaming', 'Shopping', 'Travel', 'Health', 'Gaming']);
+  assert.ok(CURATED_SOURCES.every(([, , category, countries]) => known.has(category) && Array.isArray(countries) && countries.length));
+});

@@ -39,6 +39,9 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
   const admin=readFileSync('supabase/migrations/20261002173115_phase8_admin_review.sql','utf8');
   const adminTests=readFileSync('test/phase8-sql.sql','utf8');
   const adminRollback=readFileSync('supabase/rollback/phase8_admin_review.sql','utf8');
+  const autoApproval=readFileSync('supabase/migrations/20261002230000_phase12_auto_approval.sql','utf8');
+  const autoApprovalTests=readFileSync('test/phase12-sql.sql','utf8');
+  const autoApprovalRollback=readFileSync('supabase/rollback/phase12_auto_approval.sql','utf8');
   const emailRollback=readFileSync('supabase/rollback/phase7_email_consent.sql','utf8');
   const rollback = readFileSync('supabase/rollback/phase1_normalized_storage.sql','utf8');
   const sql = `
@@ -126,6 +129,11 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
     ${accountErasureTests}
     reset role;${admin}
     ${adminTests}
+    reset role;${autoApproval}
+    ${autoApprovalTests}
+    ${adminTests}
+    ${autoApprovalRollback}
+    do $$ begin if has_function_privilege('service_role','public.nova_auto_approve(jsonb)','EXECUTE') then raise exception 'Auto approval rollback still callable';end if;end $$;
     ${adminRollback}
     do $$ begin if has_function_privilege('service_role','public.nova_admin_review(text,jsonb)','EXECUTE') then raise exception 'Admin rollback still callable';end if;if not exists(select 1 from pg_class where oid='nova_private.admin_actions'::regclass and relrowsecurity) then raise exception 'Audit retention/RLS lost';end if;end $$;
     ${accountErasureRollback}

@@ -4,7 +4,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import path from 'node:path';
 import {tmpdir} from 'node:os';
 const dir=mkdtempSync(path.join(tmpdir(),'nova-actions-'));
-Object.assign(process.env,{DATABASE_PATH:path.join(dir,'state.json'),SUPABASE_URL:'',SUPABASE_SECRET_KEY:'',RADAR_ENGINE:'actions',WORKER_ENABLED:'false',BRAVE_SEARCH_API_KEY:'fixture-only',GROQ_API_KEY:'',RESEND_API_KEY:'',SMTP_USER:'',SMTP_PASS:'',STUDENTOFFERS_DISCOVERY:'false'});
+Object.assign(process.env,{DATABASE_PATH:path.join(dir,'state.json'),SUPABASE_URL:'',SUPABASE_SECRET_KEY:'',RADAR_ENGINE:'actions',WORKER_ENABLED:'false',BRAVE_SEARCH_API_KEY:'fixture-only',GROQ_API_KEY:'',RESEND_API_KEY:'',SMTP_USER:'',SMTP_PASS:'',STUDENTOFFERS_DISCOVERY:'false',NOVA_CURATED_SOURCES:'false'});
 const {db}=await import('../src/db.js');
 const {runDiscoveryAndScan,getWorkerStatus}=await import('../src/worker.js');
 after(()=>rmSync(dir,{recursive:true,force:true}));

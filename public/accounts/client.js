@@ -38,6 +38,15 @@ export async function createAccountClient(config,{fetcher=fetch,storage=sessionS
  verifierStorage.setItem(verifierSlot,JSON.stringify({verifier,created:Date.now()}));
  try{await request('/auth/v1/otp?redirect_to='+encodeURIComponent(destination.href),{method:'POST',body:{email,create_user:true,code_challenge:challenge,code_challenge_method:'s256'}});}catch(error){verifierStorage.removeItem(verifierSlot);throw error;}
  }
+ // OAuth uses the same PKCE verifier and callback as the email link; only listed providers are allowed.
+ async function oauthUrl(provider,redirect){
+ if(!(config.providers||[]).includes(provider))throw new Error('Este método de acceso no está activado.');
+ const destination=new URL(redirect);if(destination.protocol!=='https:'&&!(destination.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(destination.hostname)))throw new Error('Destino inválido');
+ const verifier=encode(cryptoApi.getRandomValues(new Uint8Array(32)));
+ const challenge=encode(new Uint8Array(await cryptoApi.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));
+ verifierStorage.setItem(verifierSlot,JSON.stringify({verifier,created:Date.now()}));
+ return config.url+'/auth/v1/authorize?'+new URLSearchParams({provider,redirect_to:destination.href,code_challenge:challenge,code_challenge_method:'s256'});
+ }
  async function callback(code){
  let state;try{state=JSON.parse(verifierStorage.getItem(verifierSlot)||'null');}catch{}
  verifierStorage.removeItem(verifierSlot);
@@ -65,6 +74,6 @@ export async function createAccountClient(config,{fetcher=fetch,storage=sessionS
  return enabled?table('user_favorites',{method:'POST',query:'?on_conflict=user_id,offer_id',headers:{Prefer:'resolution=ignore-duplicates'},body:{user_id:active.user.id,offer_id}}):table('user_favorites',{method:'DELETE',query:'?offer_id=eq.'+offer_id+'&user_id=eq.'+encodeURIComponent(active.user.id)});
  }
  async function restore(){if(!session)return null;try{const active=await current();const user=await request('/auth/v1/user',{token:active.access_token});if(user.is_anonymous||user.id!==active.user.id)throw Object.assign(new Error('Sesión inválida'),{status:401});return active;}catch(error){if(error.status===401)store(null);throw error;}}
- return {current,restore,signIn,callback,signOut,deleteAccount,table,favorites,mergeFavorites,favorite};
+ return {current,restore,signIn,oauthUrl,providers:[...(config.providers||[])],callback,signOut,deleteAccount,table,favorites,mergeFavorites,favorite};
 }
 export async function configuredClient(options={}){const fetcher=options.fetcher||fetch;const response=await fetcher('/api/auth-config',{cache:'no-store'});if(!response.ok)throw new Error('No se pudo consultar la configuración de cuentas');return createAccountClient(await response.json(),options);}

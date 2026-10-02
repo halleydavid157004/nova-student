@@ -66,3 +66,18 @@ test('accepted account deletion clears session and verifier; an unaccepted failu
   else{assert.equal((await client.deleteAccount('ELIMINAR')).status,outcome);assert.equal(storage.getItem(slot),null);assert.equal(verifier.getItem(slot+':verifier'),null);assert.equal(await client.current(),null);}
  }
 });
+test('GitHub OAuth is opt-in, reuses PKCE and lands on the same callback',async()=>{
+ assert.deepEqual(authConfig({SUPABASE_URL:config.url,SUPABASE_PUBLISHABLE_KEY:config.key,SUPABASE_AUTH_ENABLED:'true'}).providers,[]);
+ assert.deepEqual(authConfig({SUPABASE_URL:config.url,SUPABASE_PUBLISHABLE_KEY:config.key,SUPABASE_AUTH_ENABLED:'true',SUPABASE_AUTH_GITHUB:'true'}).providers,['github']);
+ const browser=memory(),tab=memory();
+ const fetcher=async url=>{if(url.includes('/token?grant_type=pkce'))return Response.json(session());if(url.endsWith('/user'))return Response.json({id:uid,is_anonymous:false});throw new Error(url);};
+ const disabled=await createAccountClient(config,{storage:tab,verifierStorage:browser,cryptoApi:webcrypto,fetcher});
+ await assert.rejects(disabled.oauthUrl('github','https://nova-student-radar.onrender.com/account.html'),/no está activado/);
+ const client=await createAccountClient({...config,providers:['github']},{storage:tab,verifierStorage:browser,cryptoApi:webcrypto,fetcher});
+ await assert.rejects(client.oauthUrl('github','http://external.invalid/account.html'),/Destino inválido/);
+ const url=new URL(await client.oauthUrl('github','https://nova-student-radar.onrender.com/account.html'));
+ assert.equal(url.origin+url.pathname,'https://fixture.supabase.co/auth/v1/authorize');
+ assert.equal(url.searchParams.get('provider'),'github');assert.equal(url.searchParams.get('code_challenge_method'),'s256');assert.equal(url.searchParams.get('code_challenge').length,43);
+ assert.ok(!url.href.includes('verifier'));
+ await client.callback('oauth-code');assert.equal((await client.current()).user.id,uid);
+});
