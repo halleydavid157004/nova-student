@@ -36,3 +36,5 @@ Rollback: desactivar `SUPABASE_AUTH_ENABLED`, revertir PR y ejecutar `supabase/r
 ## Distribución gratuita
 
 Cargar `extension/` sin empaquetar en modo desarrollador en Chrome/Edge es la vía inmediata gratuita. Chrome Web Store exige tarifa de registro si no hay cuenta existente: no registrarse pagando. Microsoft Edge Add-ons no tiene tarifa de registro, pero requiere cuenta de desarrollador, acuerdo, política de privacidad, metadatos y revisión. No se ha publicado en ninguna tienda.
+
+Eliminación de cuentas preparada: [flujo, bloqueo y límites](PHASE_7_ACCOUNTS.md). No se activó Auth público.

@@ -1,3 +1,4 @@
+import {handleAccountDeletion} from './src/services/account-deletion.js';
 import {handleSubscriptions,prepareConsent} from './src/services/subscription-api.js';
 import {privacyConfig} from './src/services/subscriptions.js';
 import {highlights} from './public/search/highlights.js';
@@ -13,9 +14,10 @@ function body(req){return new Promise((resolve,reject)=>{let x='';let tooLarge=f
 function auth(req){return !!adminToken && adminToken!=='change-me-now' && req.headers.authorization===`Bearer ${adminToken}`}
 function staticFile(res,p){try{const s=fs.statSync(p);if(!s.isFile())return false;res.writeHead(200,{'Content-Type':types[path.extname(p)]||'application/octet-stream','Cache-Control':['account.html','preferences.html','privacy.html'].includes(path.basename(p))?'no-store':path.extname(p)==='.html'?'no-cache':'public, max-age=3600'});fs.createReadStream(p).pipe(res);return true}catch{return false}}
 const server=http.createServer(async(req,res)=>{try{if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Allow-Methods':'GET,POST,DELETE,OPTIONS'});return res.end()}const u=new URL(req.url,`http://${req.headers.host||'localhost'}`),p=u.pathname;
+if(await handleAccountDeletion(req,res,u,{json,body}))return;
 if(await handleSubscriptions(req,res,u,{json,body}))return;
 if(p==='/api/auth-config'&&req.method==='GET')return json(res,200,authConfig());
-if(p==='/api/health')return json(res,200,{ok:true,time:new Date().toISOString(),version:'2.7.1',revision:process.env.RENDER_GIT_COMMIT||null,storage:storageStatus()});
+if(p==='/api/health')return json(res,200,{ok:true,time:new Date().toISOString(),version:'2.7.2',revision:process.env.RENDER_GIT_COMMIT||null,storage:storageStatus()});
 if(['/account.html','/preferences.html','/privacy.html'].includes(p)){res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Content-Security-Policy',"default-src 'self'; connect-src 'self' https://*.supabase.co; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");res.setHeader('Cache-Control','no-store');}
 if(p.startsWith('/api/') && req.method==='GET' && !getWorkerStatus().localScanning)await refreshStorage();
 if(p==='/api/stats'){const fresh=uniqueOffers(db.offers.filter(o=>isPublishedOffer(o)&&Date.now()-new Date(o.verified_at).getTime()<7*86400000)).length,events=db.events.filter(e=>Date.now()-new Date(e.created_at).getTime()<7*86400000).length;return json(res,200,{total:uniqueOffers(db.offers.filter(isPublishedOffer)).length,sources:db.sources.filter(s=>s.enabled).length,fresh,events})}

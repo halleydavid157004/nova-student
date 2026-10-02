@@ -26,4 +26,4 @@ Antes del rollback detener Actions y retirar interfaz de supresión. supabase/ro
 
 ## Pendiente
 
-Cuenta Auth (perfil, favoritos, sesiones, búsquedas), gestión del responsable, remitente y entrega real siguen pendientes. Mantener Auth/correo desactivados hasta preparar configuración y presupuesto. El contacto del aviso atiende derechos que todavía no tienen autoservicio. La supresión aquí cubre suscripciones, no la eliminación integral de cuenta.
+El flujo para cuenta Auth (perfil, favoritos, sesiones y búsquedas) está preparado en docs/PHASE_7_ACCOUNTS.md; faltan activación/prueba real, gestión del responsable, remitente y entrega real. Mantener Auth/correo desactivados hasta preparar configuración y presupuesto. El contacto del aviso atiende derechos que todavía no tienen autoservicio. La supresión aquí cubre suscripciones, no la eliminación integral de cuenta.

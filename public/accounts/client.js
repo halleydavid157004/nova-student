@@ -44,6 +44,14 @@ export async function createAccountClient(config,{fetcher=fetch,storage=sessionS
  if(!state?.verifier||Date.now()-state.created>3600000||typeof code!=='string'||code.length>2048)throw new Error('Abre el enlace en el mismo navegador donde lo solicitaste.');
  return accept(await request('/auth/v1/token?grant_type=pkce',{method:'POST',body:{auth_code:code,code_verifier:state.verifier}}));
  }
+ async function deleteAccount(confirm){
+ if(confirm!=='ELIMINAR')throw new Error('Escribe ELIMINAR para confirmar');
+ const active=await current();if(!active)throw new Error('Inicia sesión para eliminar la cuenta');
+ const response=await fetcher('/api/account/delete',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+active.access_token},body:JSON.stringify({confirm}),credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(60000)});
+ if(!response.ok)throw new Error('No se pudo registrar la eliminación. Vuelve a intentar o usa el contacto de privacidad.');
+ const data=await response.json();if(!['completed','pending'].includes(data.status))throw new Error('No se pudo verificar la eliminación.');
+ store(null);verifierStorage.removeItem(verifierSlot);return data;
+ }
  async function signOut(){const token=session?.access_token;store(null);verifierStorage.removeItem(verifierSlot);if(token)await request('/auth/v1/logout?scope=local',{method:'POST',token});}
  async function favorites(){return (await table('user_favorites',{query:'?select=offer_id&order=offer_id.asc&limit=1000'})).map(o=>o.offer_id);}
  async function mergeFavorites(values){
@@ -57,6 +65,6 @@ export async function createAccountClient(config,{fetcher=fetch,storage=sessionS
  return enabled?table('user_favorites',{method:'POST',query:'?on_conflict=user_id,offer_id',headers:{Prefer:'resolution=ignore-duplicates'},body:{user_id:active.user.id,offer_id}}):table('user_favorites',{method:'DELETE',query:'?offer_id=eq.'+offer_id+'&user_id=eq.'+encodeURIComponent(active.user.id)});
  }
  async function restore(){if(!session)return null;try{const active=await current();const user=await request('/auth/v1/user',{token:active.access_token});if(user.is_anonymous||user.id!==active.user.id)throw Object.assign(new Error('Sesión inválida'),{status:401});return active;}catch(error){if(error.status===401)store(null);throw error;}}
- return {current,restore,signIn,callback,signOut,table,favorites,mergeFavorites,favorite};
+ return {current,restore,signIn,callback,signOut,deleteAccount,table,favorites,mergeFavorites,favorite};
 }
 export async function configuredClient(options={}){const fetcher=options.fetcher||fetch;const response=await fetcher('/api/auth-config',{cache:'no-store'});if(!response.ok)throw new Error('No se pudo consultar la configuración de cuentas');return createAccountClient(await response.json(),options);}

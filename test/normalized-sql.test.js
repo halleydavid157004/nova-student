@@ -33,11 +33,15 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
   const erasure=readFileSync('supabase/migrations/20261001232638_phase7_email_erasure.sql','utf8');
   const erasureTests=readFileSync('test/phase7-erasure-sql.sql','utf8');
   const erasureRollback=readFileSync('supabase/rollback/phase7_email_erasure.sql','utf8');
+  const accountErasure=readFileSync('supabase/migrations/20261002020555_phase7_account_erasure.sql','utf8');
+  const accountErasureTests=readFileSync('test/phase7-account-erasure-sql.sql','utf8');
+  const accountErasureRollback=readFileSync('supabase/rollback/phase7_account_erasure.sql','utf8');
   const emailRollback=readFileSync('supabase/rollback/phase7_email_consent.sql','utf8');
   const rollback = readFileSync('supabase/rollback/phase1_normalized_storage.sql','utf8');
   const sql = `
     create role anon; create role authenticated; create role service_role bypassrls;
-    create schema auth;create table auth.users(id uuid primary key);grant usage on schema auth to authenticated;
+    create schema auth;create table auth.users(id uuid primary key);grant usage on schema auth to authenticated,service_role;
+    create table auth.sessions(id uuid primary key,user_id uuid references auth.users(id) on delete cascade);
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     create function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb $$;
     create table public.nova_state(id integer primary key,state jsonb not null,updated_at timestamptz default now());
@@ -115,6 +119,10 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
     ${emailTests}
     reset role;${erasure}
     ${erasureTests}
+    reset role;${accountErasure}
+    ${accountErasureTests}
+    ${accountErasureRollback}
+    do $$ begin if has_function_privilege('service_role','public.nova_account_deletion(text,jsonb)','EXECUTE') then raise exception 'Account deletion rollback still callable';end if;if (select count(*) from pg_policy where polname='deletion_gate')<>3 then raise exception 'Rollback removed deletion gates';end if;end $$;
     ${erasureRollback}
     do $$ begin if has_function_privilege('service_role','public.nova_erase_subscription(jsonb)','EXECUTE') then raise exception 'Erasure rollback still callable';end if;end $$;
     ${emailRollback}

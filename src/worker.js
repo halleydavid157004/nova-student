@@ -1,3 +1,4 @@
+import {processAccountDeletions} from './services/account-deletion.js';
 import {scanAll, discoverAll, getBraveDiscoveryStatus} from './services/crawler.js';
 import {sendDueDigests,sendPendingConfirmations} from './services/email.js';
 import crypto from 'node:crypto';
@@ -45,6 +46,7 @@ async function performCycle({sourceOptions,force,validationOnly,onCatalog}) {
     await flushSave();
     const capacity=await workerMaintenance();
     if(capacity.capacity_low){state.lastError='capacity_low';save();await flushSave();await finishWorker(lease.token,'failed',{error:'capacity_low'});return {skipped:'capacity_low',discovery:{},scan:[]};}
+    const accounts=validationOnly?{completed:0,pending:0}:await processAccountDeletions({beforeSend:()=>assertWorker(lease.token)});
     console.log(`[Worker] Six-hour radar cycle #${state.scanCount} started.`);
     await assertWorker(lease.token);
     const discovery = validationOnly?{discovered:0}:await discoverAll(sourceOptions);
@@ -58,6 +60,7 @@ async function performCycle({sourceOptions,force,validationOnly,onCatalog}) {
     state.lastCompletedAt = new Date().toISOString();
     state.lastScanResult = {
       cycle: state.scanCount, timestamp: state.lastCompletedAt,
+      accounts,
       retention:{alertsRemoved:capacity.alerts_removed||0,subscribersRemoved:capacity.subscribers_removed||0},
       elapsed: `${((Date.now() - startedAt) / 1000).toFixed(1)}s`,
       discovery: {

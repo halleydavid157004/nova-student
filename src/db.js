@@ -254,3 +254,10 @@ export async function eraseSubscription(input){
  try{const result=await requestRemote('/rpc/nova_erase_subscription',{method:'POST',body:JSON.stringify({input}),headers:{'Content-Type':'application/json'},jsonResponse:true});forgetAlerts(result.removed_alert_ids);return {ok:true};}
  finally{nativeWrites--;nativeRevision++;}
 }
+export async function accountDeletion(op,input={}){
+ if(!normalizedStorage)throw new Error('Normalized accounts unavailable');
+ if(!['begin','queue','claim','finish'].includes(op))throw new Error('Invalid deletion operation');
+ nativeWrites++;nativeRevision++;
+ try{const result=await requestRemote('/rpc/nova_account_deletion',{method:'POST',body:JSON.stringify({op,input}),headers:{'Content-Type':'application/json'},jsonResponse:true});if(Array.isArray(result))return result;if(result.removed_alert_ids)forgetAlerts(result.removed_alert_ids);const {removed_alert_ids,...data}=result;return data;}
+ finally{nativeWrites--;nativeRevision++;}
+}

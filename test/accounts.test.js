@@ -56,3 +56,13 @@ test('PKCE redirects allow HTTP only on explicit loopback development hosts',asy
  await assert.rejects(client.signIn('fixture@example.invalid','ftp://localhost/account.html'),/Destino inválido/);
  await client.signIn('fixture@example.invalid','http://127.0.0.1:4310/account.html');
 });
+
+test('accepted account deletion clears session and verifier; an unaccepted failure preserves them',async()=>{
+ for(const outcome of ['completed','pending','failed']){
+  const storage=memory(),verifier=memory();storage.setItem(slot,JSON.stringify({...session(),expires_at:Date.now()/1000+3600,user:{id:uid}}));verifier.setItem(slot+':verifier','fixture');let calls=0;
+  const client=await createAccountClient(config,{storage,verifierStorage:verifier,fetcher:async(url,options)=>{calls++;assert.equal(url,'/api/account/delete');assert.deepEqual(JSON.parse(options.body),{confirm:'ELIMINAR'});assert.equal(options.headers.Authorization,'Bearer fixture-access');assert.equal(options.headers.apikey,undefined);return outcome==='failed'?new Response(null,{status:503}):Response.json({status:outcome},{status:outcome==='pending'?202:200});}});
+  await assert.rejects(client.deleteAccount('yes'),/ELIMINAR/);assert.equal(calls,0);
+  if(outcome==='failed'){await assert.rejects(client.deleteAccount('ELIMINAR'));assert.ok(storage.getItem(slot));assert.ok(verifier.getItem(slot+':verifier'));}
+  else{assert.equal((await client.deleteAccount('ELIMINAR')).status,outcome);assert.equal(storage.getItem(slot),null);assert.equal(verifier.getItem(slot+':verifier'),null);assert.equal(await client.current(),null);}
+ }
+});
