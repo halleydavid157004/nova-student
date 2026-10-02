@@ -36,6 +36,9 @@ const ISO_CODES = [
   'VE','VG','VI','VN','VU','WF','WS','YE','ZA','ZM','ZW'
 ];
 
+const regionNames=new Intl.DisplayNames(['es'],{type:'region'});
+const regionLabel=code=>code==='GLOBAL'?'Global':ISO_CODES.includes(code)?regionNames.of(code):'Países por confirmar';
+
 /* ============================================
    ESTADO
    ============================================ */
@@ -182,14 +185,17 @@ function renderCard(o) {
       <span class="badge ${badgeClass(o.offer_type)}">${badgeLabel(o.offer_type)}</span>
       ${highlights(o).map(h=>`<span class="meta-tag" title="${esc(h.reason)}">${esc(h.label)}</span>`).join(' ')}
       <h3>${esc(o.title)}</h3>
+      ${o.benefit?`<p class="card-benefit">${esc(o.benefit)}</p>`:''}
       ${o.summary ? `<p class="card-summary">${esc(o.summary)}</p>` : ''}
       <div class="card-meta">
         <span class="meta-tag">${esc(o.category)}</span>
         <span class="meta-tag">${esc(o.verification)}</span>
         ${o.official ? '<span class="meta-tag official">✓ Oficial</span>' : ''}
-        <span class="meta-tag">🌍 ${esc((o.countries || []).join(', ') || 'Países por confirmar')}</span>
+        <span class="meta-tag">🌍 ${esc((o.countries || []).map(regionLabel).join(', ') || 'Países por confirmar')}</span>
         ${foreign?'<span class="meta-tag">Otro país: comprueba elegibilidad</span>':''}
       </div>
+      <div class="card-verification">${o.liveness_status&&o.liveness_status!=='active'?'Comprobación en revisión':o.liveness_verified_at&&o.source_excerpt?'Comprobada con evidencia':'Última comprobación'}${Number.isFinite(Date.parse(o.liveness_verified_at||o.verified_at))?` · <time datetime="${esc(new Date(o.liveness_verified_at||o.verified_at).toISOString())}">${esc(new Date(o.liveness_verified_at||o.verified_at).toLocaleDateString('es'))}</time>`:''}</div>
+      <span class="card-detail-link" aria-hidden="true">Ver beneficio y requisitos →</span>
     </article>`;
 }
 
@@ -244,7 +250,7 @@ function bindCards(root) {
       openOffer(Number(c.dataset.id));
     });
     c.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' ') {
+      if (e.target===c&&(e.key === 'Enter' || e.key === ' ')) {
         e.preventDefault();
         openOffer(Number(c.dataset.id));
       }
@@ -449,11 +455,11 @@ async function openOffer(id) {
         </h3>
         <div class="offer-info-row">
           <span class="info-pill">🔐 ${esc(o.verification)}</span>
-          <span class="info-pill">${o.requires_card ? '💳 Puede requerir tarjeta' : '🚫 Sin tarjeta'}</span>
+          <span class="info-pill">${o.requires_card===true ? '💳 Puede requerir tarjeta' : o.requires_card===false?'🚫 Sin tarjeta':'💳 Tarjeta: consultar fuente'}</span>
           <span class="info-pill">📅 ${o.liveness_verified_at ? 'Verificada con evidencia' : 'Última comprobación'}: ${new Date(o.liveness_verified_at || o.verified_at).toLocaleDateString('es', { dateStyle: 'medium' })}</span>
           ${o.liveness_status && o.liveness_status !== 'active' ? '<span class="info-pill">🔎 Necesita revisión</span>' : ''}
           ${o.official ? '<span class="info-pill">✅ Fuente oficial</span>' : ''}
-          <span class="info-pill">🌍 ${esc((o.countries || []).join(', ') || 'Países por confirmar')}</span>
+          <span class="info-pill">🌍 ${esc((o.countries || []).map(regionLabel).join(', ') || 'Países por confirmar')}</span>
         </div>
       </div>
 
@@ -853,7 +859,7 @@ async function loadCategories() {
         }, 100);
       });
       card.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if (e.target===c&&(e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
           card.click();
         }
