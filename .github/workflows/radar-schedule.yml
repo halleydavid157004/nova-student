@@ -47,7 +47,7 @@ jobs:
           PRIVACY_CONTACT_EMAIL: ${{ vars.PRIVACY_CONTACT_EMAIL }}
           LIVENESS_MAX_AGE_DAYS: ${{ vars.LIVENESS_MAX_AGE_DAYS || '14' }}
           BRAVE_MONTHLY_LIMIT: ${{ vars.BRAVE_MONTHLY_LIMIT || '600' }}
-          SCAN_BATCH_SIZE: '30'
+          SCAN_BATCH_SIZE: '60'
           LIVENESS_AI_CALLS_PER_CYCLE: '12'
           RADAR_ENGINE: actions
           WORKER_ENABLED: 'false'

@@ -42,6 +42,9 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
   const autoApproval=readFileSync('supabase/migrations/20261002230000_phase12_auto_approval.sql','utf8');
   const autoApprovalTests=readFileSync('test/phase12-sql.sql','utf8');
   const autoApprovalRollback=readFileSync('supabase/rollback/phase12_auto_approval.sql','utf8');
+  const reportQuarantine=readFileSync('supabase/migrations/20261003000000_phase13_report_quarantine.sql','utf8');
+  const reportQuarantineTests=readFileSync('test/phase13-sql.sql','utf8');
+  const reportQuarantineRollback=readFileSync('supabase/rollback/phase13_report_quarantine.sql','utf8');
   const emailRollback=readFileSync('supabase/rollback/phase7_email_consent.sql','utf8');
   const rollback = readFileSync('supabase/rollback/phase1_normalized_storage.sql','utf8');
   const sql = `
@@ -132,6 +135,10 @@ test('normalized SQL: import, RLS, CAS, IDs, budget, legacy bridge and rollback'
     reset role;${autoApproval}
     ${autoApprovalTests}
     ${adminTests}
+    reset role;${reportQuarantine}
+    ${reportQuarantineTests}
+    ${reportQuarantineRollback}
+    do $$ begin if pg_get_functiondef('public.nova_submit_report(bigint,text,text)'::regprocedure) like '%offer_reported_hidden%' then raise exception 'Report rollback kept quarantine';end if;end $$;
     ${autoApprovalRollback}
     do $$ begin if has_function_privilege('service_role','public.nova_auto_approve(jsonb)','EXECUTE') then raise exception 'Auto approval rollback still callable';end if;end $$;
     ${adminRollback}

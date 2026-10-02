@@ -112,6 +112,14 @@ export async function validateOffer(offer,response,{extract,headless,reports=0,n
   }
   const prelim=assessment(offer,response,null,{now,reports});
   if(['blocked','expired','possibly_expired'].includes(prelim.state)||response.status<200||response.status>=400)return prelim;
+  // Published offers: when the exact approved quote (and every number/date it relies on) is still
+  // on the official page, that quote is the evidence. AI extraction stays for new or changed pages.
+  const approved=offer.approved_extraction;
+  if(offer.status==='active'&&approved?.available===true&&validExtraction(approved,section.text)){
+    const confirmed=assessment(offer,response,approved,{now,reports});
+    confirmed.signals.evidence_reused=true;
+    return confirmed;
+  }
   let extraction=null;
   if(extract)for(let attempt=0;attempt<2;attempt++) {
     try{const answer=await extract(section.text,{retry:attempt});const parsed=typeof answer==='string'?JSON.parse(answer):answer;
