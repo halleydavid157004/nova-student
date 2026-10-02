@@ -46,7 +46,7 @@ No necesita `npm install`: el backend usa solamente módulos incluidos en Node.j
 
 ## Nova AI — Groq
 
-En Render, configura `GROQ_API_KEY` para activar Nova AI y `ADMIN_TOKEN` con un valor secreto distinto de `change-me-now` para usar los endpoints administrativos. El modelo principal es `openai/gpt-oss-20b`; puedes cambiarlo con `GROQ_MODEL` y configurar alternativas separadas por comas en `GROQ_FALLBACK_MODELS`. `/api/ai/status` indica el modelo que respondió por última vez y la categoría del último error.
+En Render, configura `GROQ_API_KEY` para activar Nova AI. La administración usa Supabase Auth con rol `app_metadata.nova_role=admin`; `ADMIN_TOKEN` ya no concede acceso. El modelo principal es `openai/gpt-oss-20b`; puedes cambiarlo con `GROQ_MODEL` y configurar alternativas separadas por comas en `GROQ_FALLBACK_MODELS`. `/api/ai/status` indica el modelo que respondió por última vez y la categoría del último error.
 
 ## Pruebas y revisión de cambios
 
@@ -117,7 +117,7 @@ En Supabase, **Integrations → Cron** muestra el trabajo activo y su historial.
 
 `/api/worker-status` muestra la próxima ventana, el último ciclo, el resultado de Brave y el consumo controlado. La vista **Radar** muestra la conexión, la última búsqueda y la próxima ventana; diferencia fuentes restringidas, rastreo no permitido, fuentes desaparecidas y errores de conexión. La lista se carga por páginas de 80 fuentes para evitar cientos de filas al entrar.
 
-El cursor y metadatos del worker se guardan por clave en `app_runtime`; la importación conserva el último ciclo conocido en `worker_runs`. La Fase 3 registra cada ejecución nueva y su resumen en `worker_runs`. Los ciclos automáticos y manuales comparten una sola ejecución. Un escaneo administrativo puede revisar fuentes fuera del horario; Brave mantiene su reserva por ventana y su presupuesto mensual.
+El cursor y metadatos del worker se guardan por clave en `app_runtime`; la importación conserva el último ciclo conocido en `worker_runs`. La Fase 3 registra cada ejecución nueva y su resumen en `worker_runs`. Los ciclos automáticos y manuales comparten una sola ejecución. Un workflow manual de Actions puede revisar fuentes fuera del horario; Brave mantiene su reserva por ventana y su presupuesto mensual.
 
 Las fichas creadas automáticamente permanecen pendientes y se muestran como pistas en el Radar. El catálogo público, las alertas y Nova AI usan solo fichas activas con `official: true` o `reviewed: true`. Una respuesta HTTP 200 o un texto que contiene «student» no confirma por sí solo que exista un beneficio. Revisa el beneficio, las condiciones, la vigencia y el enlace de la marca antes de aprobar una ficha.
 
@@ -127,23 +127,13 @@ Si `DATABASE_PATH` apunta a un volumen persistente vacío, el servidor crea las 
 npm run scan
 ```
 
-## API administrativa
+## Administración
 
-Cambia `ADMIN_TOKEN` en `.env`.
-
-Escaneo manual:
-
-```bash
-curl -X POST http://localhost:4310/api/admin/scan \
-  -H "Authorization: Bearer TU_ADMIN_TOKEN"
-```
-
-Prueba de digest:
-
-```bash
-curl -X POST http://localhost:4310/api/admin/test-digest \
-  -H "Authorization: Bearer TU_ADMIN_TOKEN"
-```
+El panel `/admin.html` usa Supabase Auth con rol administrador, evidencia reciente,
+confirmación humana y registro de acciones. [Activación y rollback](docs/PHASE_8.md).
+Los endpoints con token compartido responden 410. Para escanear manualmente usa
+**Actions → Radar → Run workflow**; para preferencias/baja usa el enlace privado
+individual de la suscripción. No se incluye un envío de prueba masivo en el panel.
 
 ## Extensión Chrome / Edge
 
@@ -194,3 +184,7 @@ Hot, Imperdible y Por vencer usan criterios explícitos de revisión, gratuidad 
 ### Consentimiento y correo
 
 Las alertas guardadas requieren autorización separada y confirmación por alerta para enviar correo. Preferencias, baja y presupuesto compartido están preparados; el remitente y la identidad del responsable siguen pendientes de configurar. Consulta [fase 7 y activación](docs/PHASE_7.md) y [supresión de suscripciones y conservación](docs/PHASE_7_ERASURE.md), más [eliminación de cuentas](docs/PHASE_7_ACCOUNTS.md).
+
+### Revisión administrativa (fase 8)
+
+Panel `/admin.html` con evidencia, diferencias, revisión explícita, deduplicación y auditoría; acceso por Supabase Auth con rol admin. [Configuración, pruebas y rollback](docs/PHASE_8.md). Las cuentas siguen requiriendo activación; los endpoints con token compartido se retiraron.

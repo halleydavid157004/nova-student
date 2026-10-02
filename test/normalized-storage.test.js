@@ -110,3 +110,10 @@ test('native erasure removes cache baseline without replaying deleted personal r
  const state=await storage.load();storage.forgetAlerts([1]);state.alerts=state.alerts.filter(a=>a.id!==1);await storage.persist(state);assert.equal(calls.length,0);
  state.alerts[0].enabled=false;await storage.persist(state);assert.deepEqual(calls[0].args.changes.map(c=>c.patch.id),[2]);
 });
+
+test('native admin review updates the baseline; the next unrelated flush cannot replay a rejection',async()=>{
+ const initial={...blank(),offers:[{id:1,title:'Fixture',status:'active'}]},calls=[];
+ const storage=createNormalizedStorage(async(name,args)=>{if(name==='nova_load_rows')return structuredClone(initial);calls.push({name,args});if(name==='nova_admin_review')return {ok:true,offer:{id:1,title:'Fixture',status:'inactive'}};});
+ const state=await storage.load();const result=await storage.adminReview('reject',{id:1});Object.assign(state.offers[0],result.offer);await storage.persist(state);assert.equal(calls.length,1);
+ state.offers[0].title='Edited fixture';await storage.persist(state);assert.deepEqual(calls[1].args.changes[0].patch,{id:1,title:'Edited fixture'});assert.equal(calls[1].args.changes[0].expected.status,undefined);
+});

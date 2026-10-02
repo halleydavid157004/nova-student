@@ -130,6 +130,14 @@ export function createNormalizedStorage(rpc) {
       baseline.offers[index]=structuredClone(result.offer);
       return result.offer;
     },
+    async adminReview(op,input){
+      const result=await rpc('nova_admin_review',{op,input});
+      for(const [key,collection] of [['offer','offers'],['source','sources']])if(result[key]){
+        const row=result[key],index=baseline[collection].findIndex(o=>o.id===row.id);
+        if(index>=0)baseline[collection][index]=structuredClone(row);
+      }
+      return result;
+    },
     submitReport(offerId,reporter,reason) {return rpc('nova_submit_report',{offer_id:offerId,reporter,report_reason:reason});},
   };
 }

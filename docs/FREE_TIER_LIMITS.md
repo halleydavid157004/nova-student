@@ -52,3 +52,15 @@ Supabase changelog revisado: https://supabase.com/changelog . Se conservan grant
 ## Sesiones y supresión de cuentas — consulta 2026-10-01 (Colombia)
 
 [Supabase Sessions](https://supabase.com/docs/guides/auth/sessions): límites de duración, inactividad y sesión única requieren Pro. No se habilitan ni se compran. Nova usa RLS y una cola propia para bloquear datos al solicitar supresión. La expiración JWT recomendada es una hora; logout revoca refresh tokens pero no JWT ya emitidos. El borrado usa [Auth Admin deleteUser](https://supabase.com/docs/reference/javascript/auth-admin-deleteuser), sin un nuevo servicio ni dependencia. Las [claves nuevas](https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys) van en apikey; sb_secret nunca va en Authorization ni frontend. No se activó Auth/SMTP ni se envió email para estas pruebas.
+
+### Fase 8 — administración (consulta 2026-10-02)
+
+No se añaden servicios, planes ni dependencias del servidor. La autorización usa
+Supabase Auth REST `GET /auth/v1/user`, `app_metadata.nova_role` administrado por
+el backend, una sesión existente y una RPC con permiso exclusivo `service_role`.
+No requiere SAML, SSO empresarial ni RBAC de pago. Las pruebas de navegador siguen
+solo en Actions del repositorio público; no se configura un runner de pago.
+Referencias oficiales consultadas: [verificar usuario](https://supabase.com/docs/reference/javascript/auth-getuser),
+[grants y RLS](https://supabase.com/docs/guides/api/securing-your-api).
+La activación de cuentas y proveedor de inicio de sesión continúa pendiente; no se
+usa el SMTP gratuito limitado para registrar usuarios públicos masivamente.

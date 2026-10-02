@@ -49,6 +49,12 @@ test('HTTP API: arranque, búsqueda, alertas, seguridad y estado de IA', async t
       const search=await (await request('/api/offers?q=notion')).json();assert.ok(search.offers.some(x=>/notion/i.test(x.brand)));
       assert.equal((await request('/api/offers/99999999')).status,404);
     });
+    await t.test('admin page has no-store and restrictive security headers',async()=>{
+      const r=await request('/admin.html');assert.equal(r.status,200);
+      assert.equal(r.headers.get('cache-control'),'no-store');assert.equal(r.headers.get('referrer-policy'),'no-referrer');
+      assert.match(r.headers.get('content-security-policy'),/frame-ancestors 'none'/);
+      assert.match(await r.text(),/noindex,nofollow/);
+    });
     await t.test('anonymous search topics reject free text and deduplicate daily events',async()=>{
       const headers={'content-type':'application/json'};
       for(const payload of [{topics:['email'],query:'private@example.invalid'},{topics:['private@example.invalid']},{topics:[]}])assert.equal((await request('/api/search-gap',{method:'POST',headers,body:JSON.stringify(payload)})).status,400);
@@ -62,10 +68,10 @@ test('HTTP API: arranque, búsqueda, alertas, seguridad y estado de IA', async t
       assert.equal(r.status,503);assert.match((await r.json()).error,/configurad/);
       const invalid=await request('/api/ai/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:''})});assert.equal(invalid.status,400);
     });
-    await t.test('admin endpoints reject the example token',async()=>{
+    await t.test('retired shared-token endpoints expose no private alerts or scans',async()=>{
       const headers={authorization:'Bearer change-me-now'};
-      assert.equal((await request('/api/alerts',{headers})).status,401);
-      assert.equal((await request('/api/admin/scan',{method:'POST',headers})).status,401);
+      assert.equal((await request('/api/alerts',{headers})).status,410);
+      assert.equal((await request('/api/admin/scan',{method:'POST',headers})).status,410);
     });
     await t.test('alert validation and isolated persistence',async()=>{
       const headers={'content-type':'application/json'};

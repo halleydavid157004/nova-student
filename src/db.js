@@ -254,6 +254,13 @@ export async function eraseSubscription(input){
  try{const result=await requestRemote('/rpc/nova_erase_subscription',{method:'POST',body:JSON.stringify({input}),headers:{'Content-Type':'application/json'},jsonResponse:true});forgetAlerts(result.removed_alert_ids);return {ok:true};}
  finally{nativeWrites--;nativeRevision++;}
 }
+export async function adminReview(op,input={}){
+ if(!normalizedStorage||!['queue','context','sources','audit','approve','reject','edit','source'].includes(op))throw new Error('Normalized admin review required');
+ if(['approve','reject','edit','source'].includes(op))await flushSave();
+ nativeWrites++;nativeRevision++;
+ try{const result=await normalizedStorage.adminReview(op,input);for(const [key,collection] of [['offer','offers'],['source','sources']])if(result[key]){const current=db[collection].find(row=>row.id===result[key].id);if(current)Object.assign(current,result[key]);}return result;}
+ finally{nativeWrites--;nativeRevision++;}
+}
 export async function accountDeletion(op,input={}){
  if(!normalizedStorage)throw new Error('Normalized accounts unavailable');
  if(!['begin','queue','claim','finish'].includes(op))throw new Error('Invalid deletion operation');
