@@ -99,14 +99,40 @@ function addSource({name, url, category, countries, official, via, ref}) {
   return source;
 }
 
-/** Idempotent: adds curated official pages that are not in the source list yet. */
+/**
+ * Idempotent: adds curated official pages that are not in the source list yet. A curated page that
+ * was first found as an unconfirmed lead (same canonical URL) is marked official: the curated list is
+ * checked by hand, and a lead must not hide it from automatic approval.
+ */
 export function ensureCuratedSources(list = CURATED_SOURCES, env = process.env) {
   if (String(env.NOVA_CURATED_SOURCES || 'true').toLowerCase() === 'false') return {enabled: false, discovered: 0};
-  let added = 0;
-  for (const [name, url, category, countries] of list)
-    if (addSource({name, url, category, countries, official: true, via: 'Nova curated official page'})) added++;
-  if (added) save();
-  return {discovered: added, total: list.length};
+  let added = 0, upgraded = 0;
+  for (const [name, url, category, countries] of list) {
+    if (addSource({name, url, category, countries, official: true, via: 'Nova curated official page'})) { added++; continue; }
+    let safe;
+    try { safe = canonicalSource(sourceUrl(url).href); } catch { continue; }
+    const existing = db.sources.find(s => s.official !== true && canonicalSource(s.url) === safe);
+    if (existing) { existing.official = true; existing.official_reason = 'curated'; upgraded++; }
+  }
+  if (added || upgraded) save();
+  return {discovered: added, upgraded, total: list.length};
+}
+
+/**
+ * Leads saved before Fase 11 were all stored as unconfirmed, even when StudentOffers linked straight
+ * to the brand's own site. Apply the same rule new leads get (`brandOwnsDomain`) to those old
+ * StudentOffers leads. Brave and other search leads are left alone: their names are page titles,
+ * not brands, so the domain check would trust blogs.
+ */
+export function promoteOfficialLeads() {
+  let promoted = 0;
+  for (const source of db.sources) {
+    if (source.official === true || !/^StudentOffers/i.test(String(source.discovered_via || ''))) continue;
+    if (!brandOwnsDomain(source.name, source.url)) continue;
+    source.official = true; source.official_reason = 'brand_domain'; promoted++;
+  }
+  if (promoted) save();
+  return {promoted};
 }
 
 /**
