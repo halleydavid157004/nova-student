@@ -13,7 +13,7 @@ export async function auditStatic(site){
  try{
   browser=await chromium.launch({args:['--remote-debugging-port=9222']});
   const base=`http://127.0.0.1:${server.address().port}/`;
-  const pages=['',...[...site.files.keys()].filter(p=>p.startsWith('ofertas/')&&p.endsWith('index.html')).slice(0,1)];
+  const pages=['','benefits.html',...[...site.files.keys()].filter(p=>p.startsWith('ofertas/')&&p.endsWith('index.html')).slice(0,1)];
   const scores=[];
   for(const page of pages){const {lhr}=await lighthouse(base+page,{port:9222,output:'json',logLevel:'error',onlyCategories:['performance','accessibility','seo']});
    const row={page,...Object.fromEntries(Object.entries(lhr.categories).map(([key,value])=>[key,value.score]))};scores.push(row);

@@ -37,3 +37,7 @@ test('client search handles accents and hides expired or stale cached offers',as
  const item=dom.window.document.querySelector('article');catalog.offers[0].verified_at='2000-01-01';controller.update();assert.equal(item.hidden,true);controller.dispose();
  dom.window.close();
 });
+
+test('static benefits tool uses local catalog and subpath assets without requiring Render for loading',()=>{
+ const site=buildSite({schema:1,offers:[offer()]});const html=site.files.get('benefits.html');assert.match(html,/data-catalog=".\/catalog.json"/);assert.match(html,/data-mode="static"/);assert.ok(site.files.has('benefits/model.js'));assert.ok(site.files.has('benefits/page.js'));assert.ok(site.files.has('account.css'));assert.match(site.files.get('sitemap.xml'),/benefits.html/);assert.match(site.files.get('index.html'),/nova-student\/benefits.html/);
+});

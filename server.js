@@ -1,3 +1,4 @@
+import {publicCatalog} from './src/services/catalog-export.js';
 import {handleAdminReview} from './src/services/admin-review.js';
 import {handleAccountDeletion} from './src/services/account-deletion.js';
 import {handleSubscriptions,prepareConsent} from './src/services/subscription-api.js';
@@ -12,16 +13,17 @@ const chatBudget=createRequestBudget({limit:30,windowMs:600000,maxConcurrent:2})
 const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon'};
 function json(res,status,obj){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Access-Control-Allow-Origin':'*','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(obj))}
 function body(req){return new Promise((resolve,reject)=>{let x='';let tooLarge=false;req.on('data',d=>{if(tooLarge)return;x+=d;if(x.length>1e6){tooLarge=true;reject(Object.assign(new Error('Payload too large'),{status:413}));req.resume()}});req.on('end',()=>{if(tooLarge)return;try{const parsed=x?JSON.parse(x):{};if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('Invalid JSON object');resolve(parsed)}catch{reject(Object.assign(new Error('Invalid JSON object'),{status:400}))}});req.on('error',reject)})}
-function staticFile(res,p){try{const s=fs.statSync(p);if(!s.isFile())return false;res.writeHead(200,{'Content-Type':types[path.extname(p)]||'application/octet-stream','Cache-Control':['admin.html','account.html','preferences.html','privacy.html'].includes(path.basename(p))?'no-store':path.extname(p)==='.html'?'no-cache':'public, max-age=3600'});fs.createReadStream(p).pipe(res);return true}catch{return false}}
+function staticFile(res,p){try{const s=fs.statSync(p);if(!s.isFile())return false;res.writeHead(200,{'Content-Type':types[path.extname(p)]||'application/octet-stream','Cache-Control':['benefits.html','admin.html','account.html','preferences.html','privacy.html'].includes(path.basename(p))?'no-store':path.extname(p)==='.html'?'no-cache':'public, max-age=3600'});fs.createReadStream(p).pipe(res);return true}catch{return false}}
 const server=http.createServer(async(req,res)=>{try{if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Allow-Methods':'GET,POST,DELETE,OPTIONS'});return res.end()}const u=new URL(req.url,`http://${req.headers.host||'localhost'}`),p=u.pathname;
 if(await handleAdminReview(req,res,u,{json,body}))return;
 if(await handleAccountDeletion(req,res,u,{json,body}))return;
 if(await handleSubscriptions(req,res,u,{json,body}))return;
 if(p==='/api/auth-config'&&req.method==='GET')return json(res,200,authConfig());
-if(p==='/api/health')return json(res,200,{ok:true,time:new Date().toISOString(),version:'2.8.0',revision:process.env.RENDER_GIT_COMMIT||null,storage:storageStatus()});
-if(['/admin.html','/account.html','/preferences.html','/privacy.html'].includes(p)){res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Content-Security-Policy',"default-src 'self'; connect-src 'self' https://*.supabase.co; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");res.setHeader('Cache-Control','no-store');}
+if(p==='/api/health')return json(res,200,{ok:true,time:new Date().toISOString(),version:'2.9.0',revision:process.env.RENDER_GIT_COMMIT||null,storage:storageStatus()});
+if(['/benefits.html','/admin.html','/account.html','/preferences.html','/privacy.html'].includes(p)){res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Content-Security-Policy',"default-src 'self'; connect-src 'self' https://*.supabase.co; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");res.setHeader('Cache-Control','no-store');}
 if(p.startsWith('/api/') && req.method==='GET' && !getWorkerStatus().localScanning)await refreshStorage();
 if(p==='/api/stats'){const fresh=uniqueOffers(db.offers.filter(o=>isPublishedOffer(o)&&Date.now()-new Date(o.verified_at).getTime()<7*86400000)).length,events=db.events.filter(e=>Date.now()-new Date(e.created_at).getTime()<7*86400000).length;return json(res,200,{total:uniqueOffers(db.offers.filter(isPublishedOffer)).length,sources:db.sources.filter(s=>s.enabled).length,fresh,events})}
+if(p==='/api/catalog'&&req.method==='GET')return json(res,200,publicCatalog(db.offers));
 if(p==='/api/offers'&&req.method==='GET'){const q=u.searchParams.get('q')||'';const offers=searchOffers(Object.fromEntries(u.searchParams));return json(res,200,{offers,suggestions:offers.length?[]:searchSuggestions(q),gap_topics:offers.length?[]:gapTopics(q)})}
 if(p==='/api/search-gap'&&req.method==='POST'){
  const x=await body(req),allowed=new Set(SYNONYMS.map(g=>g[0]));

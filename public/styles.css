@@ -2443,3 +2443,6 @@ body.dark .source-state.err { background: rgba(248,113,113,0.12); color: #f87171
 }
 #loadMore { display: block; margin: 28px auto 0; }
 #loadMore[hidden] { display: none; }
+
+/* Benefit-first cards: show value and provenance before opening a detail. */
+.card-benefit{font-weight:650;color:var(--text);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin:8px 0 12px}.card-verification{font-size:.75rem;color:var(--muted);margin-top:16px;line-height:1.5}.card-detail-link{display:block;font-size:.8rem;font-weight:650;color:var(--accent);margin-top:10px}.header-actions{flex-wrap:wrap}.header-actions>a{font-size:.8rem;font-weight:600;white-space:nowrap}

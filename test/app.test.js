@@ -55,6 +55,11 @@ test('HTTP API: arranque, búsqueda, alertas, seguridad y estado de IA', async t
       assert.match(r.headers.get('content-security-policy'),/frame-ancestors 'none'/);
       assert.match(await r.text(),/noindex,nofollow/);
     });
+    await t.test('benefits page and public catalog preserve approval and omit private fields',async()=>{
+      const r=await request('/benefits.html');assert.equal(r.status,200);assert.equal(r.headers.get('cache-control'),'no-store');
+      const c=await (await request('/api/catalog')).json();assert.equal(c.schema,1);assert.equal(c.max_age_days,14);
+      assert.ok(c.offers.every(o=>o.status==='active'&&(o.official||o.reviewed)));assert.ok(c.offers.every(o=>!('email' in o)&&!('extra' in o)&&!('admin_notes' in o)));
+    });
     await t.test('anonymous search topics reject free text and deduplicate daily events',async()=>{
       const headers={'content-type':'application/json'};
       for(const payload of [{topics:['email'],query:'private@example.invalid'},{topics:['private@example.invalid']},{topics:[]}])assert.equal((await request('/api/search-gap',{method:'POST',headers,body:JSON.stringify(payload)})).status,400);

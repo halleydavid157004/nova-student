@@ -188,3 +188,7 @@ Las alertas guardadas requieren autorización separada y confirmación por alert
 ### Revisión administrativa (fase 8)
 
 Panel `/admin.html` con evidencia, diferencias, revisión explícita, deduplicación y auditoría; acceso por Supabase Auth con rol admin. [Configuración, pruebas y rollback](docs/PHASE_8.md). Las cuentas siguen requiriendo activación; los endpoints con token compartido se retiraron.
+
+### Mis beneficios (fase 9)
+
+`/benefits.html`: orientación por país/correo/carrera, evidencia fechada, calendario y estimaciones personales de ahorro en USD. Reaplica vigencia y deduplicación; no garantiza elegibilidad ni inventa precios. Funciona con catálogo local en Pages. [Pruebas, límites y operación](docs/PHASE_9.md); [referencia y brechas frente a StudentOffers](docs/STUDENTOFFERS_BENCHMARK.md).
