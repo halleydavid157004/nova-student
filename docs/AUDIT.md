@@ -103,3 +103,11 @@ Validación: `npm ci && npm test`; informe de cobertura con el comando anterior;
 3. Fase 3: ciclo completo Actions, secretos solo en entorno protegido, exclusión y presupuesto persistentes; Render deja de rastrear.
 4. Fases 4/5: catálogo estático, E2E/Lighthouse y búsqueda con casos de relevancia/citas.
 5. Fases 6–9: Auth/sync, consentimiento/envíos, admin por rol y diferenciadores. Nunca dar por probado envío, elegibilidad, SEO o sincronización porque la UI muestra un botón.
+
+## Actualización fase 8 (2026-10-02)
+
+ADMIN-01: panel por rol de Supabase Auth, verificación de usuario y sesión actuales,
+RPC exclusiva de backend y auditoría de decisiones. Retirados los endpoints de
+token compartido que exponían alertas/correos o disparaban escaneos/digests. El rol
+solo usa `app_metadata`; los perfiles editables no conceden permisos.
+Activación Auth y designación del propietario siguen pendientes: ver PHASE_8.md.
