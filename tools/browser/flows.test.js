@@ -27,7 +27,8 @@ test('browser: search, open offer and persist an alert', {timeout:45000},async()
     await page.locator('#nav-discover').click();await page.locator('#q').fill('cloud');await page.locator('#searchBtn').click();
     await page.locator('#grid .card').first().waitFor();assert.match(await page.locator('#grid').innerText(),/Educación cloud/);
     await page.locator('#grid .card').first().click();await page.locator('#modalTitle').waitFor();assert.match(await page.locator('#modalTitle').innerText(),/Educación cloud/);
-    await page.locator('#modal [data-close]').first().click();
+    // The premium panel covers the backdrop's center; close with the visible button.
+    await page.locator('#modal .modal-close').click();await page.locator('#modal').waitFor({state:'hidden'});
     await page.locator('#createAlert-header').click();await page.locator('#alertEmail').fill('browser-fixture@example.invalid');
     await page.locator('#alertSubmitBtn').click();
     await page.waitForFunction(()=>/guardada|creada|activada/i.test(document.querySelector('#alertStatus')?.textContent||''));
