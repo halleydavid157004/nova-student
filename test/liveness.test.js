@@ -65,3 +65,16 @@ test('verification translations and unknown geography do not invent material cha
  const same=assessment(offer,response,extraction,{now});assert.equal(same.state,'active');assert.equal(same.success,true);
  const changed=assessment(offer,response,{...extraction,verification:'SheerID'},{now});assert.equal(changed.state,'needs_review');assert.ok(changed.signals.material.includes('verification_changed'));assert.equal(changed.failure,false);
 });
+test('published offers are re-verified with the approved quote without spending AI, and fall back when it disappears',async()=>{
+  let calls=0;const extract=async()=>{calls++;return extraction();};
+  const published={...offer(),verification:'Educational email',approved_extraction:extraction()};
+  const reused=await validateOffer(published,page('active'),{extract,now});
+  assert.equal(calls,0);assert.equal(reused.state,'active');assert.equal(reused.success,true);assert.equal(reused.signals.evidence_reused,true);
+  assert.equal(reused.patch.liveness_verified_at,new Date(now).toISOString());
+  const moved=await validateOffer({...published,approved_extraction:{...extraction(),evidence:'this quote is no longer on the page'}},page('active'),{extract,now});
+  assert.equal(calls,1);assert.equal(moved.signals.evidence_reused,undefined);
+  const pending=await validateOffer({...published,status:'pending'},page('active'),{extract,now});
+  assert.equal(calls,2,'unpublished offers always get a fresh extraction');assert.equal(pending.signals.evidence_reused,undefined);
+  const ended=await validateOffer(published,page('expired'),{extract,now});
+  assert.equal(ended.state,'expired');assert.equal(calls,2);
+});

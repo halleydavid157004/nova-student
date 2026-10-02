@@ -6,7 +6,7 @@ import {privacyConfig} from './src/services/subscriptions.js';
 import {highlights} from './public/search/highlights.js';
 import {gapTopics} from './public/search/engine.js';
 import {SYNONYMS} from './public/search/synonyms.js';
-import './src/env.js';import {authConfig} from './src/services/auth-config.js';import {uniqueOffers} from './public/search/identity.js';import crypto from 'node:crypto';import {maxAgeDays} from './src/services/liveness.js';import {createRequestBudget} from './src/services/api-limits.js';import http from 'node:http';import fs from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';import {db,migrate,save,flushSave,storageStatus,id,refreshStorage,persistAlertRow,configureValidation,submitReport} from './src/db.js';import {seedDatabase,applyCatalogCorrections} from './src/seed.js';import {searchOffers,searchSuggestions,domainOffers,isPublishedOffer} from './src/services/search.js';import {emailStatus} from './src/services/email.js';import {startWorker,getWorkerStatus} from './src/worker.js';import {CATEGORIES} from './src/data/seed.js';import {chatWithNova,aiStatus} from './src/services/groq.js';
+import './src/env.js';import {authConfig} from './src/services/auth-config.js';import {uniqueOffers} from './public/search/identity.js';import crypto from 'node:crypto';import {maxAgeDays} from './src/services/liveness.js';import {createRequestBudget,clientAddress} from './src/services/api-limits.js';import http from 'node:http';import fs from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';import {db,migrate,save,flushSave,storageStatus,id,refreshStorage,persistAlertRow,configureValidation,submitReport} from './src/db.js';import {seedDatabase,applyCatalogCorrections} from './src/seed.js';import {searchOffers,searchSuggestions,domainOffers,isPublishedOffer} from './src/services/search.js';import {emailStatus} from './src/services/email.js';import {startWorker,getWorkerStatus} from './src/worker.js';import {CATEGORIES} from './src/data/seed.js';import {chatWithNova,aiStatus} from './src/services/groq.js';
 await migrate();await configureValidation(maxAgeDays());if(!db.offers.length)seedDatabase();else applyCatalogCorrections();await flushSave();const __dirname=path.dirname(fileURLToPath(import.meta.url));const pub=path.join(__dirname,'public');const port=Number(process.env.PORT||4310);const adminToken=process.env.ADMIN_TOKEN;
 const gapBudget=createRequestBudget({limit:30,windowMs:3600000,maxConcurrent:1});
 const chatBudget=createRequestBudget({limit:30,windowMs:600000,maxConcurrent:2});const alertBudget=createRequestBudget({limit:20,windowMs:60000,maxConcurrent:4});const reportBudget=createRequestBudget({limit:20,windowMs:60000,maxConcurrent:2});
@@ -19,7 +19,7 @@ if(await handleAdminReview(req,res,u,{json,body}))return;
 if(await handleAccountDeletion(req,res,u,{json,body}))return;
 if(await handleSubscriptions(req,res,u,{json,body}))return;
 if(p==='/api/auth-config'&&req.method==='GET')return json(res,200,authConfig());
-if(p==='/api/health')return json(res,200,{ok:true,time:new Date().toISOString(),version:'2.12.0',revision:process.env.RENDER_GIT_COMMIT||null,storage:storageStatus()});
+if(p==='/api/health')return json(res,200,{ok:true,time:new Date().toISOString(),version:'2.13.0',revision:process.env.RENDER_GIT_COMMIT||null,storage:storageStatus()});
 if(['/benefits.html','/admin.html','/account.html','/preferences.html','/privacy.html'].includes(p)){res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Content-Security-Policy',"default-src 'self'; connect-src 'self' https://*.supabase.co; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");res.setHeader('Cache-Control','no-store');}
 if(p.startsWith('/api/') && req.method==='GET' && !getWorkerStatus().localScanning)await refreshStorage();
 if(p==='/api/stats'){const fresh=uniqueOffers(db.offers.filter(o=>isPublishedOffer(o)&&Date.now()-new Date(o.verified_at).getTime()<7*86400000)).length,events=db.events.filter(e=>Date.now()-new Date(e.created_at).getTime()<7*86400000).length;return json(res,200,{total:uniqueOffers(db.offers.filter(isPublishedOffer)).length,sources:db.sources.filter(s=>s.enabled).length,fresh,events})}
@@ -47,7 +47,7 @@ if(/^\/api\/offers\/\d+\/reports$/.test(p)&&req.method==='POST'){
  const offer=db.offers.find(o=>o.id===Number(p.split('/')[3]));if(!isPublishedOffer(offer))return json(res,404,{error:'Not found'});
  const secret=process.env.REPORT_HASH_SECRET||process.env.SUPABASE_SECRET_KEY||adminToken;
  if(!secret||secret==='change-me-now')return json(res,503,{error:'Reports unavailable'});
- const reporter=crypto.createHmac('sha256',secret).update(req.socket.remoteAddress||'unknown').digest('hex');
+ const reporter=crypto.createHmac('sha256',secret).update(clientAddress(req)).digest('hex');
  const admission=reportBudget();if(admission.retryAfter){res.setHeader('Retry-After',String(admission.retryAfter));return json(res,429,{error:'Reports busy'})}
  let result;try{result=await submitReport(offer.id,reporter,x.reason)}finally{admission.release()}
  if(result.limited){res.setHeader('Retry-After','86400');return json(res,429,{error:'Report limit reached'})}

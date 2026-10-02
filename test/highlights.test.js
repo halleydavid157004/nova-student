@@ -33,6 +33,10 @@ test('due approved offers get scan capacity without bypassing terms or backoff',
  sources[5].next_retry_at=new Date(now+day).toISOString();
  assert.deepEqual(prioritizedSources(sources,offers,{now,limit:3}).map(s=>s.id),[1,2,3]);
  assert.deepEqual(prioritizedSources(sources,offers,{now,limit:0}),[]);
+ const many=Array.from({length:4},(_,i)=>({...offer,source_url:`https://example.org/${i+3}`,verified_at:new Date(now-2*day).toISOString()}));
+ sources[5].next_retry_at=null;
+ // Two of three slots go to due published offers even when older sources are waiting.
+ assert.deepEqual(prioritizedSources(sources,many,{now,limit:3}).map(s=>s.id),[3,4,1]);
 });
 
 test('production workflows select the existing secrets environment and retain explicit stop',()=>{

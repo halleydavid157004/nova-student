@@ -10,8 +10,9 @@ export function prioritizedSources(sources,offers,{now=Date.now(),limit=30}={}) 
       return {source,rank:age*10+(100-score)/10+Math.min(20,Math.log2(visits+1)*2)};})
     .sort((a,b)=>b.rank-a.rank||a.source.id-b.source.id);
   const cap=Math.max(0,Math.floor(Number(limit)||0));
-  // Reserve one third for due approved offers; remaining slots retain age fairness.
-  const reserved=ranked.filter(({source})=>due.has(source.id)||(source.url&&due.has(canonicalSource(source.url)))).slice(0,Math.ceil(cap/3));
+  // Up to two thirds go to published offers due for their daily check (cheap: their approved
+  // quote is re-confirmed without AI); the rest keeps age fairness for discovery.
+  const reserved=ranked.filter(({source})=>due.has(source.id)||(source.url&&due.has(canonicalSource(source.url)))).slice(0,Math.ceil(cap*2/3));
   const used=new Set(reserved.map(({source})=>source.id));
   return [...reserved,...ranked.filter(({source})=>!used.has(source.id))].slice(0,cap).map(row=>row.source);
 }
