@@ -261,6 +261,22 @@ export async function adminReview(op,input={}){
  try{const result=await normalizedStorage.adminReview(op,input);for(const [key,collection] of [['offer','offers'],['source','sources']])if(result[key]){const current=db[collection].find(row=>row.id===result[key].id);if(current)Object.assign(current,result[key]);}return result;}
  finally{nativeWrites--;nativeRevision++;}
 }
+// Fase 12: strict automatic publication runs inside Supabase (same gate as the panel) and
+// stays undoable from the review queue. NOVA_AUTO_APPROVE=false turns it off from the app.
+export async function autoApprove(env=process.env){
+ if(!normalizedStorage||!workerContext||String(env.NOVA_AUTO_APPROVE||'true').toLowerCase()==='false')return {enabled:false,approved:[]};
+ await flushSave();
+ nativeWrites++;nativeRevision++;
+ try{
+  const result=await normalizedStorage.autoApprove({worker_run_id:workerContext.run_id,worker_token:workerContext.token});
+  for(const row of result.offers||[]){const current=db.offers.find(o=>o.id===row.id);if(current)Object.assign(current,row);}
+  return {enabled:result.enabled===true,approved:result.approved||[],skipped:result.skipped||{}};
+ }catch(error){
+  // Until the Phase 12 migration is applied the RPC does not exist: keep the cycle running.
+  if(/HTTP 404/.test(error.message))return {enabled:false,approved:[],error:'migration_missing'};
+  throw error;
+ }finally{nativeWrites--;nativeRevision++;}
+}
 export async function accountDeletion(op,input={}){
  if(!normalizedStorage)throw new Error('Normalized accounts unavailable');
  if(!['begin','queue','claim','finish'].includes(op))throw new Error('Invalid deletion operation');

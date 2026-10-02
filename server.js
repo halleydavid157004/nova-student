@@ -19,7 +19,7 @@ if(await handleAdminReview(req,res,u,{json,body}))return;
 if(await handleAccountDeletion(req,res,u,{json,body}))return;
 if(await handleSubscriptions(req,res,u,{json,body}))return;
 if(p==='/api/auth-config'&&req.method==='GET')return json(res,200,authConfig());
-if(p==='/api/health')return json(res,200,{ok:true,time:new Date().toISOString(),version:'2.11.0',revision:process.env.RENDER_GIT_COMMIT||null,storage:storageStatus()});
+if(p==='/api/health')return json(res,200,{ok:true,time:new Date().toISOString(),version:'2.12.0',revision:process.env.RENDER_GIT_COMMIT||null,storage:storageStatus()});
 if(['/benefits.html','/admin.html','/account.html','/preferences.html','/privacy.html'].includes(p)){res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Content-Security-Policy',"default-src 'self'; connect-src 'self' https://*.supabase.co; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");res.setHeader('Cache-Control','no-store');}
 if(p.startsWith('/api/') && req.method==='GET' && !getWorkerStatus().localScanning)await refreshStorage();
 if(p==='/api/stats'){const fresh=uniqueOffers(db.offers.filter(o=>isPublishedOffer(o)&&Date.now()-new Date(o.verified_at).getTime()<7*86400000)).length,events=db.events.filter(e=>Date.now()-new Date(e.created_at).getTime()<7*86400000).length;return json(res,200,{total:uniqueOffers(db.offers.filter(isPublishedOffer)).length,sources:db.sources.filter(s=>s.enabled).length,fresh,events})}

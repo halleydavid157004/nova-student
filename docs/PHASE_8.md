@@ -15,7 +15,7 @@ Versión 2.8.0. Panel `/admin.html`; API `/api/admin/review`; RPC
 
 ## Reglas de publicación
 
-Una oferta descubierta nunca se aprueba sola. Se exige una verificación de hace
+Una oferta descubierta nunca se aprueba sola. (Desde la [fase 12](PHASE_12.md), solo las de fuente oficial con evidencia fuerte se publican solas, con registro y deshacer en este panel.) Se exige una verificación de hace
 como máximo siete días, HTTP final 2xx, extracción estructurada vinculada al check,
 cita de 10–400 caracteres, beneficio disponible, requisitos, países conocidos y
 vencimiento futuro o nulo. Se rechazan robots/captcha, soft-404, fallos, reportes

@@ -4,5 +4,7 @@ export function authConfig(env=process.env){
  const url=String(env.SUPABASE_URL||'').replace(/\/$/,'');
  const valid=/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url)&&publicKey&&!key.startsWith('sb_secret_');
  const enabled=valid&&env.SUPABASE_AUTH_ENABLED==='true';
- return enabled?{enabled:true,url,key}:{enabled:false,reason:'Las cuentas todavía no están activadas. Tus favoritos siguen disponibles en este dispositivo.'};
+ // GitHub OAuth (free, no email sender needed) must also be enabled in Supabase Auth → Providers.
+ const providers=env.SUPABASE_AUTH_GITHUB==='true'?['github']:[];
+ return enabled?{enabled:true,url,key,providers}:{enabled:false,reason:'Las cuentas todavía no están activadas. Tus favoritos siguen disponibles en este dispositivo.'};
 }

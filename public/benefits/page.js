@@ -1,7 +1,7 @@
 import {liveOffers,eligibility,verificationBadge,calendarOffers,deadlineMonth,savingsEstimate,savingsTotal,LATAM} from './model.js';
 import {countryOptions,COUNTRY_CODES} from '../search/countries.js';
 const money=value=>new Intl.NumberFormat('es',{style:'currency',currency:'USD'}).format(value);
-async function savedProfile(){const {configuredClient}=await import('../accounts/client.js?v=2');const client=await configuredClient();if(!client||!await client.restore())throw new Error('Inicia sesión en Mi cuenta cuando las cuentas estén activadas.');return (await client.table('user_profiles',{query:'?select=country,career,email_type&limit=1'}))[0]||{};}
+async function savedProfile(){const {configuredClient}=await import('../accounts/client.js?v=3');const client=await configuredClient();if(!client||!await client.restore())throw new Error('Inicia sesión en Mi cuenta cuando las cuentas estén activadas.');return (await client.table('user_profiles',{query:'?select=country,career,email_type&limit=1'}))[0]||{};}
 export async function initBenefits(doc,{fetcher=fetch,loadProfile=savedProfile,now=()=>Date.now(),timeZone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC',startTimer=setInterval,stopTimer=clearInterval}={}){
  const $=id=>doc.getElementById(id),root=$('benefits-root');if(!root)return;
  const status=message=>{$('benefits-status').textContent=message;},node=(tag,text)=>{const n=doc.createElement(tag);if(text!==undefined)n.textContent=String(text);return n;};
