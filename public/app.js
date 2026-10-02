@@ -669,7 +669,7 @@ function renderRadar(sources, events, reset = true) {
             <div class="source-row">
               <div>
                 <strong><a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.name)} ↗</a></strong>
-                <small>${esc(s.domain)} · ${s.official ? '✓ Oficial' : 'Descubierta'} · ${esc(s.category)}</small>
+                <small>${esc(s.domain)} · ${s.official ? '✓ Oficial' : 'Pista por verificar'} · ${esc(s.category)}${s.discovered_via ? ` · vía ${esc(s.discovered_via)}` : ''}</small>
                 ${s.last_checked_at ? `<small>Última comprobación: ${new Date(s.last_checked_at).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}</small>` : ''}
               </div>
               <span class="source-state ${stateClass}">${esc(stateLabel)}</span>

@@ -65,7 +65,9 @@ async function performCycle({sourceOptions,force,validationOnly,onCatalog}) {
       elapsed: `${((Date.now() - startedAt) / 1000).toFixed(1)}s`,
       discovery: {
         newSources: discovery.discovered || 0,
+        curated: discovery.curated?.discovered || 0,
         studentOffers: discovery.studentOffers?.discovered || 0,
+        studentOffersMode: discovery.studentOffers?.mode || null,
         brave: discovery.brave?.discovered || 0,
         github: discovery.github?.discovered || 0,
       },

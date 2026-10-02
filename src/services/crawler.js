@@ -5,7 +5,7 @@
  * and creates student offers from the web 24/7.
  * 
  * Sources:
- *  1. StudentOffers.co public API
+ *  1. StudentOffers.co leads (sitemap/offer pages via robots-aware client) + curated official pages
  *  2. Brave Search API (trending queries)
  *  3. Known aggregator scraping (UNiDAYS, Student Beans, GitHub Education partners)
  *  4. Direct source monitoring (detects changes on official pages)
@@ -21,6 +21,7 @@ import {braveSearch, braveState, braveStatus, radarWindow} from './brave.js';
 
 import {sourceClient,SOURCE_UA} from './source-http.js';
 import {validateOffer,relevantSection} from './liveness.js';
+import {discoverStudentOffersLeads, ensureCuratedSources} from './studentoffers.js';
 const ua = SOURCE_UA;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const hash = s => crypto.createHash('sha256').update(s).digest('hex');
@@ -327,74 +328,13 @@ export async function scanAll(options={}) {
 }
 
 /* ═══════════════════════════════════════════
-   DISCOVER: StudentOffers.co API
+   DISCOVER: StudentOffers.co leads (robots-compliant, Fase 11)
    ═══════════════════════════════════════════ */
-export async function discoverStudentOffers() {
-  if (String(process.env.STUDENTOFFERS_DISCOVERY || 'true').toLowerCase() === 'false')
-    return { enabled: false, discovered: 0 };
-
-  try {
-    const r = await fetch('https://www.studentoffers.co/api/v1/offers', {
-      headers: { Accept: 'application/json', 'user-agent': ua },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT),
-    });
-
-    if (!r.ok) return { enabled: true, discovered: 0, error: `HTTP ${r.status}` };
-
-    const j = await r.json();
-    const rows = Array.isArray(j) ? j : (j.offers || j.data || j.results || []);
-    let added = 0;
-
-    for (const item of rows.slice(0, 1000)) {
-      const title = item.title || item.name || item.offer_name || item.company || item.brand;
-      if (!title) continue;
-
-      const candidates = [
-        item.source_url, item.official_url, item.claim_url, item.url,
-        item.link, item.website, ...(Array.isArray(item.links) ? item.links : [])
-      ].filter(x => typeof x === 'string' && /^https?:\/\//.test(x));
-
-      const url = candidates.find(x => !new URL(x).hostname.endsWith('studentoffers.co')) || candidates[0];
-      if (!url) continue;
-      if (db.sources.some(x => canonicalSource(x.url) === canonicalSource(url))) continue;
-
-      let dom;
-      try { dom = new URL(url).hostname.replace(/^www\./, ''); } catch { continue; }
-
-      const category = item.category || item.type || guessCategory(
-        [title, item.description || '', item.tags?.join(' ') || ''].join(' ')
-      );
-
-      const source = {
-        id: id('sources'),
-        name: String(title).slice(0, 180),
-        url, domain: dom,
-        category,
-        countries: Array.isArray(item.countries) ? item.countries : guessCountries(item.description || title),
-        enabled: true, official: false,
-        last_checked_at: null, last_hash: null, last_status: null, last_error: null,
-        discovered_via: 'StudentOffers API',
-      };
-
-      db.sources.push(source);
-      db.events.push({
-        id: id('events'),
-        type: 'source_discovered',
-        source_id: source.id,
-        title: `Nueva pista: ${source.name}`,
-        details: { url, via: 'StudentOffers API' },
-        created_at: new Date().toISOString(),
-      });
-      added++;
-    }
-
-    save();
-    console.log(`[StudentOffers] Discovered ${added} new sources from ${rows.length} total.`);
-    return { enabled: true, discovered: added, totalSeen: rows.length };
-
-  } catch (e) {
-    return { enabled: true, discovered: 0, error: String(e.message || e) };
-  }
+// The old direct call to /api/v1/offers ignored robots.txt (it disallows /api/ for generic agents).
+// Leads now come from the public sitemap and offer pages through the robots-aware client.
+export async function discoverStudentOffers(options = {}) {
+  try { return await discoverStudentOffersLeads({guessCategory, ...options}); }
+  catch (e) { return { enabled: true, discovered: 0, error: String(e.message || e) }; }
 }
 
 /* ═══════════════════════════════════════════
@@ -596,7 +536,8 @@ export async function discoverAll(options={}) {
   console.log(`[Discovery] Starting full discovery cycle…`);
   const start = Date.now();
 
-  const studentOffers = await discoverStudentOffers();
+  const curated = ensureCuratedSources();
+  const studentOffers = await discoverStudentOffers(options.studentOffers);
   await sleep(500);
 
   const brave = await discoverWithBrave();
@@ -636,11 +577,11 @@ export async function discoverAll(options={}) {
 
   const github = await discoverGitHubPartners(options);
 
-  const totalDiscovered = (studentOffers.discovered || 0) + (brave.discovered || 0) + (groqFallback.discovered || 0) + (github.discovered || 0);
+  const totalDiscovered = (curated.discovered || 0) + (studentOffers.discovered || 0) + (brave.discovered || 0) + (groqFallback.discovered || 0) + (github.discovered || 0);
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
 
   console.log(`[Discovery] Complete in ${elapsed}s. Total new sources: ${totalDiscovered}`);
-  console.log(`  └─ StudentOffers: ${studentOffers.discovered || 0}, Brave: ${brave.discovered || 0}, Groq: ${groqFallback.discovered || 0}, GitHub: ${github.discovered || 0}`);
+  console.log(`  └─ Curadas: ${curated.discovered || 0}, StudentOffers: ${studentOffers.discovered || 0} (${studentOffers.mode || 'off'}), Brave: ${brave.discovered || 0}, Groq: ${groqFallback.discovered || 0}, GitHub: ${github.discovered || 0}`);
 
   // Log summary event
   if (totalDiscovered > 0) {
@@ -648,11 +589,11 @@ export async function discoverAll(options={}) {
       id: id('events'),
       type: 'discovery_cycle',
       title: `Ciclo de descubrimiento: ${totalDiscovered} nuevas fuentes`,
-      details: { studentOffers: studentOffers.discovered, brave: brave.discovered, groq: groqFallback.discovered, github: github.discovered, elapsed },
+      details: { curated: curated.discovered, studentOffers: studentOffers.discovered, brave: brave.discovered, groq: groqFallback.discovered, github: github.discovered, elapsed },
       created_at: new Date().toISOString(),
     });
     save();
   }
 
-  return { studentOffers, brave, groqFallback, github, discovered: totalDiscovered };
+  return { curated, studentOffers, brave, groqFallback, github, discovered: totalDiscovered };
 }
