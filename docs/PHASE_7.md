@@ -33,7 +33,7 @@ Rollback conserva columnas, historial y consentimiento. Desactiva envíos/config
 
 ## Pendiente antes de declarar completas las fases 6 y 7
 
-- Eliminación integral de cuenta Auth y sus datos, y procedimiento de atención al titular. La supresión de suscripciones por enlace y la purga de solicitudes sin confirmar están implementadas en el seguimiento descrito en docs/PHASE_7_ERASURE.md.
+- Activación y prueba real del borrado de cuentas Auth, y procedimiento de atención al titular. El flujo de eliminación de cuentas está preparado en docs/PHASE_7_ACCOUNTS.md. La supresión de suscripciones por enlace y la purga de solicitudes sin confirmar están implementadas en el seguimiento descrito en docs/PHASE_7_ERASURE.md.
 - Completar identificación y revisión del aviso para el operador real; no afirmar cumplimiento jurídico con campos vacíos.
 - Presupuesto compartido con magic links de Auth o proveedor OAuth gratuito alternativo.
 - Remitente verificado y prueba de entrega real con consentimiento; no se ha enviado correo ni activado Resend en esta fase.
