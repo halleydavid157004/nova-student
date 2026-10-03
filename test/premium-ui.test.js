@@ -30,7 +30,7 @@ test('premium layer keeps privacy and safety rules', () => {
 });
 
 test('cards keep the hooks used by tests, keyboard users and the premium layer', () => {
-  for (const hook of ['class="card"', 'data-save=', 'data-compare=', 'class="lg mg']) assert.ok(app.includes(hook), hook);
-  assert.match(app, /closest\('\.save-btn, \.cmp-btn'\)/, 'save and compare buttons do not open the detail');
+  for (const hook of ['class="card offer-card"', 'data-save=', 'data-compare=', 'class="lg mg']) assert.ok(app.includes(hook), hook);
+  assert.match(app, /closest\('\.save-btn, \.cmp-btn, \.oc-cta'\)/, 'save, compare and claim buttons do not open the detail');
   assert.match(app, /window\.NovaApp = \{/, 'app exposes the small API used by premium.js');
 });

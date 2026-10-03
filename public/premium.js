@@ -7,6 +7,7 @@
  *  - Nova AI quick prompts and mobile tab bar
  * Everything degrades gracefully: if a request fails, the base app keeps working.
  */
+import {logoDomain} from './search/logos.js';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -33,11 +34,12 @@ const fresh = o => { const v = Date.parse(o.liveness_verified_at || o.verified_a
 /* ---------------- logos ---------------- */
 // Simple Icons (CC0) ships as one CommonJS file. We load it at most once per new set of brands
 // and keep only the icons we need in localStorage, so repeat visits cost nothing.
-const ICON_KEY = 'nova-icons-v16';
+const ICON_KEY = 'nova-icons-v18';
 let iconCache = store.get(ICON_KEY, {});
 const ALIASES = { 'google': ['google'], 'google cloud': ['googlecloud', 'google'], 'github': ['github'], 'microsoft': ['microsoft'], 'amazon': ['amazon'], 'aws': ['amazonwebservices', 'amazonaws'], 'amazon web services': ['amazonwebservices', 'amazonaws'], 'apple': ['apple'], 'adobe': ['adobecreativecloud', 'adobe'], 'jetbrains': ['jetbrains'], 'notion': ['notion'], 'figma': ['figma'], 'spotify': ['spotify'], 'youtube': ['youtube'], 'coursera': ['coursera'], 'autodesk': ['autodesk'], 'canva': ['canva'], 'digitalocean': ['digitalocean'], 'unity': ['unity'], 'openai': ['openai'], 'perplexity': ['perplexity'], 'linkedin': ['linkedin'], 'unidays': ['unidays'], 'isic': ['isic'], 'mongodb': ['mongodb'], 'heroku': ['heroku'], 'datacamp': ['datacamp'], 'namecheap': ['namecheap'], '1password': ['1password'], 'samsung': ['samsung'], 'dell': ['dell'], 'lenovo': ['lenovo'], 'hp': ['hp'], 'tableau': ['tableau'], 'miro': ['miro'], 'evernote': ['evernote'], 'obsidian': ['obsidian'], 'deezer': ['deezer'], 'tidal': ['tidal'], 'hulu': ['hulu'], 'nike': ['nike'], 'adidas': ['adidas'], 'puma': ['puma'], 'uber': ['uber'], 'doordash': ['doordash'], 'headspace': ['headspace'], 'emirates': ['emirates'], 'discover': ['discover'], 'chase': ['chase'], 'cisco': ['cisco'], 'ibm': ['ibm'], 'comptia': ['comptia'], 'hack the box': ['hackthebox'], 'tryhackme': ['tryhackme'], 'grammarly': ['grammarly'], 'gitkraken': ['gitkraken'], 'datadog': ['datadog'], 'sentry': ['sentry'], 'postman': ['postman'], 'educative': ['educative'], 'codecademy': ['codecademy'], 'arcgis': ['arcgis'], 'esri': ['arcgis'] };
 const siSlug = s => String(s || '').toLowerCase().replace(/\+/g, 'plus').replace(/\./g, 'dot').replace(/&/g, 'and').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
-const slugsFor = brand => { const k = norm(brand).trim(); return [...new Set([...(ALIASES[k] || []), siSlug(brand), siSlug(String(brand).split(/[\s(·/-]/)[0])].filter(Boolean))]; };
+// The first word alone ("Amp Code" → amp) is only trusted when the brand's own domain is that word.
+const slugsFor = (brand, domain = '') => { const k = norm(brand).trim(), first = siSlug(String(brand).split(/[\s(·/-]/)[0]); return [...new Set([...(ALIASES[k] || []), siSlug(brand), String(domain).split('.')[0] === first ? first : ''].filter(Boolean))]; };
 const lum = hex => { const n = parseInt(hex, 16); const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
 let libPromise = null;
 function loadLibrary() {
@@ -52,40 +54,51 @@ function loadLibrary() {
   });
   return libPromise;
 }
+// A guessed slug can name a different company (Flux CD for flux.ai), so outside the curated aliases an
+// icon counts only when Simple Icons took it from the brand's own site.
+function iconFor(el, slugs) {
+  const curated = ALIASES[norm(el.dataset.brand).trim()] || [], root = String(el.dataset.domain || '').split('.')[0];
+  for (const s of slugs) { const icon = iconCache[s]; if (icon && (curated.includes(s) || (root.length > 2 && String(icon.src || '').includes(root)))) return icon; }
+  return null;
+}
 function paint(el, icon) {
   const hex = icon.hex;
   el.classList.remove('mg'); el.classList.add('has-logo', 'in');
   if (lum(hex) > 0.75) el.classList.add('dark-tile');
   el.innerHTML = `<svg viewBox="0 0 24 24" role="img" aria-hidden="true"><path fill="#${hex}" d="${icon.path}"/></svg>`;
 }
-function paintFavicon(el) {
-  const domain = el.dataset.domain; if (!domain || el.dataset.fav) return;
+// The site's own icon: Google's favicon service first (it answers a 16px globe when it has nothing),
+// then icon.horse; the monogram stays if neither has a real icon.
+const FAVICONS = [d => `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=128`, d => `https://icon.horse/icon/${encodeURIComponent(d)}`];
+function paintFavicon(el, n = 0) {
+  const domain = el.dataset.domain; if (!domain || !FAVICONS[n] || (n === 0 && el.dataset.fav)) return;
   el.dataset.fav = '1';
   const img = new Image(); img.referrerPolicy = 'no-referrer'; img.alt = '';
-  img.onload = () => { if (img.naturalWidth >= 24 && el.classList.contains('mg')) { el.classList.remove('mg'); el.classList.add('has-logo', 'in', 'fav'); el.replaceChildren(img); } };
-  img.src = `https://icon.horse/icon/${encodeURIComponent(domain)}`;
+  img.onload = () => { if (!el.classList.contains('mg')) return; if (img.naturalWidth >= 32) { el.classList.remove('mg'); el.classList.add('has-logo', 'in', 'fav'); el.replaceChildren(img); } else paintFavicon(el, n + 1); };
+  img.onerror = () => paintFavicon(el, n + 1);
+  img.src = FAVICONS[n](domain);
 }
 let hydrateTimer = null;
 function scheduleHydrate() { clearTimeout(hydrateTimer); hydrateTimer = setTimeout(hydrate, 60); }
 async function hydrate() {
   const tiles = $$('.lg.mg[data-brand]'); if (!tiles.length) return;
-  const need = new Set();
+  const need = new Map();
   for (const el of tiles) {
-    const slugs = slugsFor(el.dataset.brand);
-    const hit = slugs.map(s => iconCache[s]).find(Boolean);
+    const slugs = slugsFor(el.dataset.brand, el.dataset.domain);
+    const hit = iconFor(el, slugs);
     if (hit) paint(el, hit);
-    else if (slugs.some(s => !(s in iconCache))) need.add(el.dataset.brand);
+    else if (slugs.some(s => !(s in iconCache))) need.set(el.dataset.brand, el.dataset.domain);
     else paintFavicon(el);
   }
   if (!need.size) return;
   const lib = await loadLibrary();
-  for (const brand of need) for (const s of slugsFor(brand)) {
+  for (const [brand, domain] of need) for (const s of slugsFor(brand, domain)) {
     const key = 'si' + s.charAt(0).toUpperCase() + s.slice(1);
-    iconCache[s] = lib && lib[key]?.path ? { path: lib[key].path, hex: lib[key].hex } : 0;
+    iconCache[s] = lib && lib[key]?.path ? { path: lib[key].path, hex: lib[key].hex, src: String(lib[key].source || '').toLowerCase() } : 0;
   }
   if (lib) store.set(ICON_KEY, iconCache);
   for (const el of $$('.lg.mg[data-brand]')) {
-    const hit = slugsFor(el.dataset.brand).map(s => iconCache[s]).find(Boolean);
+    const hit = iconFor(el, slugsFor(el.dataset.brand, el.dataset.domain));
     hit ? paint(el, hit) : paintFavicon(el);
   }
 }
@@ -96,7 +109,7 @@ function tile(o, size = '') {
   const w = String(brand).replace(/[^\p{L}\p{N} ]/gu, ' ').split(/\s+/).filter(Boolean);
   const ini = (w.length > 1 ? w[0][0] + w[1][0] : (w[0] || '?').slice(0, 2)).toUpperCase();
   let h = 0; for (const c of String(brand)) h = (h * 31 + c.charCodeAt(0)) % 360;
-  let domain = ''; try { domain = new URL(o.source_url).hostname.replace(/^www\./, ''); } catch {}
+  const domain = logoDomain(o);
   return `<span class="lg mg ${size}" data-brand="${esc(brand)}" data-domain="${esc(domain)}" style="--h:${h}" aria-hidden="true">${esc(ini)}</span>`;
 }
 

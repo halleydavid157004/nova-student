@@ -1,4 +1,6 @@
 import {highlights} from './search/highlights.js';
+import {genericSummary} from './search/engine.js';
+import {logoDomain} from './search/logos.js';
 /**
  * Nova Student Radar — Frontend App
  * Rewritten for full functionality & premium UX
@@ -164,10 +166,7 @@ function badgeLabel(type) {
 /* ============================================
    TARJETA DE OFERTA
    ============================================ */
-const brandDomain = o => {
-  const domain = o.source_domain || (o.source_url ? (() => { try { return new URL(o.source_url).hostname.replace(/^www\./, ''); } catch { return ''; } })() : '');
-  return /^[a-z0-9.-]+$/i.test(domain) ? domain : '';
-};
+const brandDomain = o => logoDomain(o);
 const brandHue = name => { let h = 0; for (const c of String(name)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 // Monogram first; premium.js swaps in the brand logo (Simple Icons, then the site icon) when available.
 function logoTile(o, size = '') {
@@ -181,35 +180,52 @@ const VERIFICATION_LABELS = {'None':'Sin verificación','Educational email':'Cor
 const verLabel = v => String(v || '').split(' / ').map(x => VERIFICATION_LABELS[x] || x.replace('Educational email','Correo educativo').replace('documents','documentos').replace('Self-declaration','autodeclaración')).join(' / ');
 const verifiedStamp = o => { const v = Date.parse(o.liveness_verified_at || o.verified_at); return Number.isFinite(v) ? new Date(v) : null; };
 
+// One line that says what the product is; scraped boilerplate and repeats of the benefit are dropped.
+const genericTitle = t => /beneficios? para estudiantes|student (discount|offer|benefit)s?$/i.test(String(t || ''));
+function cardDescription(o) {
+  const benefit = String(o.benefit || '').trim();
+  for (const text of [o.summary, genericTitle(o.title) ? '' : o.title]) {
+    const value = String(text || '').trim();
+    if (value && !genericSummary(value) && value !== benefit && !benefit.startsWith(value.slice(0, 40))) return value;
+  }
+  return '';
+}
+const SHORT_CAT = {Development:'Desarrollo',Cloud:'Cloud',Design:'Diseño',Creative:'Creativo',Productivity:'Productividad',AI:'IA',Entertainment:'Entretenimiento',Education:'Educación',Finance:'Finanzas',Hardware:'Hardware',Security:'Seguridad',Hosting:'Hosting',Streaming:'Streaming',Shopping:'Compras',Travel:'Viajes',Health:'Salud',Gaming:'Gaming'};
+const placesLabel = o => { const places = (o.countries || []).map(regionLabel); return places.length > 2 ? places.slice(0, 2).join(', ') + ' +' + (places.length - 2) : places.join(', ') || 'Países por confirmar'; };
+const PIN = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>';
+const OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
+
 function renderCard(o) {
   const isSaved = saved.has(o.id);
   const selectedCountry=$('#country')?.value || 'ALL';
   const foreign=selectedCountry!=='ALL'&&!(o.countries||[]).includes('GLOBAL')&&!(o.countries||[]).includes(selectedCountry);
   const stamp = verifiedStamp(o);
-  const places = (o.countries || []).map(regionLabel);
+  const top = highlights(o).find(h => h.key !== 'hot');
+  const desc = cardDescription(o);
+  const benefit = o.benefit || o.summary || '';
   return `
-    <article class="card" data-id="${o.id}" role="listitem" tabindex="0" aria-label="${esc(o.title)}">
-      <div class="card-top">
+    <article class="card offer-card" data-id="${o.id}" role="listitem" tabindex="0" aria-label="${esc(o.brand || o.title)}: ${esc(benefit)}">
+      <div class="oc-top">
         <div class="brandmark">${logoTile(o)}</div>
-        <div class="card-head">
-          <h3>${esc(o.title)}</h3>
-          <div class="card-brand">${esc(o.brand || '')}${o.brand ? ' · ' : ''}${esc(catLabel(o.category))}</div>
+        <div class="oc-head">
+          <h3 title="${esc(o.title)}">${esc(o.brand || o.title)}</h3>
+          <div class="oc-tags">
+            ${top ? `<span class="oc-tag hot hl-${esc(top.key)}" title="${esc(top.reason)}">${esc(top.label)}</span>` : ''}
+            <span class="oc-tag">${esc(SHORT_CAT[o.category] || catLabel(o.category))}</span>
+            <span class="oc-tag t-${esc(o.offer_type || 'other')}">${badgeLabel(o.offer_type)}</span>
+          </div>
         </div>
         <button class="save-btn ${isSaved ? 'saved' : ''}" data-save="${o.id}" aria-label="${isSaved ? 'Quitar de guardadas' : 'Guardar oferta'}" title="${isSaved ? 'Quitar de guardadas' : 'Guardar'}">${isSaved ? '♥' : '♡'}</button>
       </div>
-      ${o.benefit ? `<p class="card-benefit">${esc(o.benefit)}</p>` : o.summary ? `<p class="card-benefit">${esc(o.summary)}</p>` : ''}
-      <div class="card-meta">
-        <span class="badge ${badgeClass(o.offer_type)}">${badgeLabel(o.offer_type)}</span>
-        ${highlights(o).map(h=>`<span class="meta-tag hl-${esc(h.key)}" title="${esc(h.reason)}">${esc(h.label)}</span>`).join('')}
-        <span class="meta-tag">${esc(verLabel(o.verification))}</span>
-        ${o.official ? '<span class="meta-tag official">✓ Oficial</span>' : ''}
-        <span class="meta-tag" title="${esc(places.join(', '))}">${esc(places.length > 2 ? places.slice(0, 2).join(', ') + ' +' + (places.length - 2) : places.join(', ') || 'Países por confirmar')}</span>
-        ${foreign?'<span class="meta-tag warn">Otro país: comprueba elegibilidad</span>':''}
-      </div>
-      <div class="card-foot">
-        <div class="card-verification">${o.liveness_status&&o.liveness_status!=='active'?'Comprobación en revisión':o.liveness_verified_at&&o.source_excerpt?'Comprobada con evidencia':'Última comprobación'}${stamp?` · <time datetime="${esc(stamp.toISOString())}">${esc(stamp.toLocaleDateString('es'))}</time>`:''}</div>
-        <button class="cmp-btn" type="button" data-compare="${o.id}" aria-pressed="false" aria-label="Comparar ${esc(o.title)}" title="Comparar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M12 2v20"/></svg></button>
-        <span class="card-detail-link" aria-hidden="true">Ver detalles →</span>
+      <p class="oc-benefit t-${esc(o.offer_type || 'other')}"><span>${esc(benefit)}</span></p>
+      ${desc ? `<p class="oc-desc">${esc(desc)}</p>` : ''}
+      <a class="oc-cta" href="${esc(safeUrl(o.source_url))}" target="_blank" rel="noopener noreferrer" data-claim="${o.id}">Obtener beneficio ${OUT}</a>
+      <div class="oc-foot">
+        <span class="oc-place" title="${esc((o.countries || []).map(regionLabel).join(', '))}">${PIN}${esc(placesLabel(o))}</span>
+        ${foreign ? '<span class="oc-warn" title="Comprueba si puedes reclamarla desde tu país">Otro país</span>' : ''}
+        <span class="oc-date">${stamp ? `Verificada <time datetime="${esc(stamp.toISOString())}">${esc(stamp.toLocaleDateString('es', { day: 'numeric', month: 'short' }))}</time>` : ''}</span>
+        <button class="cmp-btn" type="button" data-compare="${o.id}" aria-pressed="false" aria-label="Comparar ${esc(o.brand || o.title)}" title="Comparar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M12 2v20"/></svg></button>
+        <button class="oc-more" type="button" data-details="${o.id}">Detalles</button>
       </div>
     </article>`;
 }
@@ -261,7 +277,7 @@ function bindCards(root) {
   // Click en tarjeta → abrir detalle
   root.querySelectorAll('.card').forEach(c => {
     c.addEventListener('click', e => {
-      if (e.target.closest('.save-btn, .cmp-btn')) return;
+      if (e.target.closest('.save-btn, .cmp-btn, .oc-cta')) return;
       openOffer(Number(c.dataset.id));
     });
     c.addEventListener('keydown', e => {
@@ -324,10 +340,10 @@ async function search() {
   const generation = ++searchGeneration;
   const skeleton = $('#loadingSkeleton');
   const grid = $('#grid');
-  if (skeleton) skeleton.style.display = '';
-  if (grid) grid.innerHTML = '';
+  if (grid) grid.setAttribute('aria-busy', 'true');
 
   const q = $('#q').value.trim();
+  syncCatalogControls();
   const country = $('#country').value;
   const category = $('#category').value;
   const verification = $('#verification').value;
@@ -337,7 +353,7 @@ async function search() {
   try {
     let [{ offers: list, suggestions=[],gap_topics=[] }, { sources }] = await Promise.all([
       apiFetch('/api/offers?' + params),
-      apiFetch('/api/sources?q=' + encodeURIComponent(q))
+      q ? apiFetch('/api/sources?q=' + encodeURIComponent(q)) : Promise.resolve({ sources: [] })
     ]);
     if (generation !== searchGeneration) return;
 
@@ -355,16 +371,20 @@ async function search() {
     }
 
     if (skeleton) skeleton.style.display = 'none';
+    grid?.removeAttribute('aria-busy');
 
     const titleEl = $('#resultTitle');
     if (titleEl) {
-      titleEl.textContent = q ? `Resultados para "${q}"` : 'Beneficios destacados';
+      const cat = category !== 'ALL' ? catLabel(category) : '';
+      titleEl.textContent = q ? `Resultados para "${q}"${cat ? ' en ' + cat : ''}` : cat || 'Todas las ofertas';
     }
 
     visibleCount = 48;
     render(list);
     let hints=$('#searchHints');if(!hints){hints=document.createElement('div');hints.id='searchHints';$('#resultTitle').after(hints);}
     hints.replaceChildren();
+    if(!list.length){const button=document.createElement('button');button.className='btn-ghost';button.textContent='Quitar búsqueda y filtros';button.addEventListener('click',()=>$('#clear').click());hints.append(button);}
+    if(!list.length&&category!=='ALL'){const button=document.createElement('button');button.className='btn-secondary';button.textContent='Buscar en todas las categorías';button.addEventListener('click',()=>setCategory('ALL'));hints.append(button);}
     if(!list.length&&q){for(const term of suggestions){const button=document.createElement('button');button.className='btn-ghost';button.textContent='Buscar '+term;button.addEventListener('click',()=>{$('#q').value=term;search();});hints.append(button);}
       if(gap_topics.length)apiFetch('/api/search-gap',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topics:gap_topics})}).catch(()=>{});
     }
@@ -751,21 +771,51 @@ $$('.nav-btn').forEach(btn => {
 /* ============================================
    BÚSQUEDA: EVENTOS
    ============================================ */
-$('#searchBtn').addEventListener('click', () => search());
+const scrollToResults = () => $('#results')?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+$('#searchBtn').addEventListener('click', () => { search(); scrollToResults(); });
 
-$('#q').addEventListener('keydown', e => {
-  if (e.key === 'Enter') search();
-});
+// Both search boxes (hero and catalog) share one query and filter as you type.
+for (const sel of ['#q', '#q2']) {
+  const input = $(sel);
+  input?.addEventListener('input', () => { const other = $(sel === '#q' ? '#q2' : '#q'); if (other) other.value = input.value; triggerSearch(); });
+  input?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(searchDebounce); search(); if (sel === '#q') scrollToResults(); } });
+}
+$('#q2Clear')?.addEventListener('click', () => { $('#q').value = ''; $('#q2').value = ''; search(); $('#q2').focus(); });
 
 // Chips de búsqueda rápida
 $$('.chip').forEach(btn => {
   btn.addEventListener('click', () => {
     $('#q').value = btn.dataset.q;
     search();
-    // Scroll suave al grid
-    $('#discover')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    scrollToResults();
   });
 });
+
+function setCategory(cat, scroll = false) {
+  $('#category').value = [...$('#category').options].some(o => o.value === cat) ? cat : 'ALL';
+  search();
+  if (scroll) scrollToResults();
+}
+// Keeps the second search box, the clear button and the category pills in step with the filters.
+function syncCatalogControls() {
+  const q = $('#q').value, q2 = $('#q2');
+  if (q2 && document.activeElement !== q2) q2.value = q;
+  const clear = $('#q2Clear'); if (clear) clear.hidden = !q;
+  const cat = $('#category').value;
+  $$('#catBar [data-cat]').forEach(b => { const on = b.dataset.cat === cat; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
+  $$('#categoriesGrid .category-card').forEach(c => c.classList.toggle('active', c.dataset.category === cat));
+}
+
+// Advanced filters stay folded until asked for; the toggle shows how many are in use.
+function syncFilterToggle() {
+  const n = ['#country', '#verification', '#emailRequirement'].filter(sel => $(sel)?.value !== 'ALL').length + ['#crossCountry', '#verifiedWeek'].filter(sel => $(sel)?.checked).length;
+  const badge = $('#filterCount'); if (badge) { badge.textContent = n; badge.hidden = !n; }
+}
+$('#filtersToggle')?.addEventListener('click', () => {
+  const bar = $('#filtersBar'), open = bar.hidden;
+  bar.hidden = !open; $('#filtersToggle').setAttribute('aria-expanded', String(open));
+});
+['#country', '#verification', '#emailRequirement', '#verifiedWeek', '#crossCountry'].forEach(sel => $(sel)?.addEventListener('change', syncFilterToggle));
 
 // Filtros en tiempo real
 ['#country', '#category', '#verification','#emailRequirement','#verifiedWeek','#crossCountry'].forEach(sel => {
@@ -776,10 +826,12 @@ $$('.chip').forEach(btn => {
 // Limpiar filtros
 $('#clear').addEventListener('click', () => {
   $('#q').value = '';
+  if ($('#q2')) $('#q2').value = '';
   $('#country').value = 'ALL';
   $('#category').value = 'ALL';
   $('#verification').value = 'ALL';
   $('#emailRequirement').value='ALL';$('#verifiedWeek').checked=false;$('#crossCountry').checked=false;
+  syncFilterToggle();
   search();
 });
 
@@ -831,43 +883,32 @@ async function loadCategories() {
     const grid = $('#categoriesGrid');
     if (!grid || !categories?.length) return;
 
-    grid.innerHTML = categories.map(c => `
-      <div class="category-card"
-           role="listitem"
-           data-category="${esc(c.key)}"
-           style="--cat-color: ${c.color || 'var(--accent)'};"
-           tabindex="0"
-           aria-label="${esc(c.label)}: ${c.offers} ofertas">
-        <span class="category-emoji" aria-hidden="true">${c.emoji || '📦'}</span>
-        <div class="category-info">
-          <div class="category-name">${esc(c.label || c.key)}</div>
-          <div class="category-count">${c.offers} oferta${c.offers !== 1 ? 's' : ''}</div>
-        </div>
-      </div>
-    `).join('');
-
     // Save metadata for UI
     categories.forEach(c => { categoryMeta[c.key] = c; });
 
-    // Click to filter by category
-    grid.querySelectorAll('.category-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const cat = card.dataset.category;
-        $('#category').value = cat;
-        $('#q').value = '';
-        search();
-        // Scroll to results
-        setTimeout(() => {
-          $('#discover')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
-      });
-      card.addEventListener('keydown', (e) => {
-        if (e.target===c&&(e.key === 'Enter' || e.key === ' ')) {
-          e.preventDefault();
-          card.click();
-        }
-      });
-    });
+    grid.innerHTML = categories.map(c => `
+      <button type="button" class="category-card"
+           role="listitem"
+           data-category="${esc(c.key)}"
+           style="--cat-color: ${c.color || 'var(--accent)'};"
+           aria-label="${esc(c.label)}: ${c.offers} ofertas">
+        <span class="category-emoji" aria-hidden="true">${c.emoji || '📦'}</span>
+        <span class="category-info">
+          <span class="category-name">${esc(c.label || c.key)}</span>
+          <span class="category-count">${c.offers} oferta${c.offers !== 1 ? 's' : ''}</span>
+        </span>
+      </button>
+    `).join('');
+    grid.querySelectorAll('.category-card').forEach(card => card.addEventListener('click', () => { $('#q').value = ''; setCategory(card.dataset.category, true); }));
+
+    const total = categories.reduce((n, c) => n + c.offers, 0);
+    const bar = $('#catBar');
+    if (bar) {
+      bar.innerHTML = `<button type="button" class="cat-pill active" data-cat="ALL" aria-pressed="true">Todas <span>${total}</span></button>` +
+        categories.map(c => `<button type="button" class="cat-pill" data-cat="${esc(c.key)}" aria-pressed="false"><i aria-hidden="true">${c.emoji || ''}</i>${esc(c.label || c.key)} <span>${c.offers}</span></button>`).join('');
+      bar.querySelectorAll('[data-cat]').forEach(b => b.addEventListener('click', () => setCategory(b.dataset.cat)));
+    }
+    syncCatalogControls();
   } catch (e) {
     console.error('loadCategories error:', e);
   }
