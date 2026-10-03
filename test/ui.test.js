@@ -1,4 +1,6 @@
 import {highlights} from '../public/search/highlights.js';
+import {genericSummary} from '../public/search/engine.js';
+import {logoDomain} from '../public/search/logos.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -37,8 +39,8 @@ test('interfaz: filtros, detalle, favoritos, radar, alerta e IA',async()=>{
   };
   const $=sel=>window.document.querySelector(sel);
   try {
-    window.highlights=highlights;
-    window.eval(app.replace(/^import .*highlights.*;\n/,''));
+    Object.assign(window,{highlights,genericSummary,logoDomain});
+    window.eval(app.replace(/^import .*;\n/gm,''));
     await sleep(120);
     assert.equal(window.document.querySelectorAll('#grid .card').length,48,'first page renders 48 cards');
     $('#loadMore').click();
