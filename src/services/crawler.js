@@ -21,7 +21,7 @@ import {braveSearch, braveState, braveStatus, radarWindow} from './brave.js';
 
 import {sourceClient,SOURCE_UA} from './source-http.js';
 import {validateOffer,relevantSection} from './liveness.js';
-import {discoverStudentOffersLeads, ensureCuratedSources} from './studentoffers.js';
+import {discoverStudentOffersLeads, ensureCuratedSources, promoteOfficialLeads} from './studentoffers.js';
 const ua = SOURCE_UA;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const hash = s => crypto.createHash('sha256').update(s).digest('hex');
@@ -537,6 +537,7 @@ export async function discoverAll(options={}) {
   const start = Date.now();
 
   const curated = ensureCuratedSources();
+  const promoted = promoteOfficialLeads();
   const studentOffers = await discoverStudentOffers(options.studentOffers);
   await sleep(500);
 
@@ -595,5 +596,5 @@ export async function discoverAll(options={}) {
     save();
   }
 
-  return { curated, studentOffers, brave, groqFallback, github, discovered: totalDiscovered };
+  return { curated, promoted, studentOffers, brave, groqFallback, github, discovered: totalDiscovered };
 }

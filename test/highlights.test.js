@@ -42,3 +42,12 @@ test('due approved offers get scan capacity without bypassing terms or backoff',
 test('production workflows select the existing secrets environment and retain explicit stop',()=>{
  for(const file of ['radar-schedule.yml','validate-offers.yml']){const workflow=readFileSync('.github/workflows/'+file,'utf8');assert.match(workflow,/environment: Variables/);assert.match(workflow,/RADAR_ACTIONS_ENABLED != 'false'/);assert.match(workflow,/group: nova-radar-writer/);assert.match(workflow,/timeout-minutes: 25/);}
 });
+
+test('official sources with never-checked candidates come right after due published offers',()=>{
+ const sources=Array.from({length:12},(_,i)=>({id:i+1,url:`https://brand${i+1}.example/students`,enabled:true,official:i>=8,last_checked_at:new Date(now-(30-i)*day).toISOString()}));
+ const offers=[{id:1,status:'pending',source_id:11,source_url:'https://brand11.example/students'},{id:2,status:'pending',source_id:12,source_url:'https://brand12.example/students'},
+  {id:3,status:'pending',source_id:10,source_url:'https://brand10.example/students',liveness_status:'needs_review',liveness_verified_at:new Date(now).toISOString()},
+  {id:4,status:'pending',source_id:1,source_url:'https://brand1.example/students'}];
+ assert.deepEqual(prioritizedSources(sources,offers,{now,limit:5}).map(s=>s.id),[11,1,2,3,4]);
+ assert.deepEqual(prioritizedSources(sources,offers,{now,limit:10}).slice(0,2).map(s=>s.id),[11,12]);
+});

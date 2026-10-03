@@ -109,3 +109,28 @@ test('curated official pages are added once, as official sources with safe URLs'
   const known = new Set(['Development', 'Cloud', 'Design', 'Creative', 'Productivity', 'AI', 'Entertainment', 'Education', 'Finance', 'Hardware', 'Security', 'Hosting', 'Streaming', 'Shopping', 'Travel', 'Health', 'Gaming']);
   assert.ok(CURATED_SOURCES.every(([, , category, countries]) => known.has(category) && Array.isArray(countries) && countries.length));
 });
+
+test('curated list covers the main Latin American countries with local official pages', () => {
+  for (const code of ['CO', 'MX', 'CL', 'AR', 'PE', 'BR'])
+    assert.ok(CURATED_SOURCES.some(([, , , countries]) => countries.includes(code)), `missing ${code}`);
+  const latam = CURATED_SOURCES.filter(([, , , countries]) => countries.some(c => ['CO', 'MX', 'CL', 'AR', 'PE'].includes(c)));
+  assert.ok(latam.length >= 12);
+});
+
+test('a curated page first saved as a lead becomes official; old StudentOffers leads on the brand domain too', () => {
+  db.sources.length = 0;
+  db.sources.push(
+    {id: 1, name: 'Hulu', url: 'https://www.hulu.com/student', official: false, enabled: true, discovered_via: 'Brave Search'},
+    {id: 2, name: 'Databricks', url: 'https://www.databricks.com/learn/free-edition', official: false, enabled: true, discovered_via: 'StudentOffers API'},
+    {id: 3, name: 'Antares', url: 'https://www.studentbeans.com/student-discount/us/antares', official: false, enabled: true, discovered_via: 'StudentOffers API'},
+    {id: 4, name: 'The Ultimate Manual to GitHub Student Developer Pack - Nira', url: 'https://nira.com/github-student-developer-pack/', official: false, enabled: true, discovered_via: 'Brave Search'},
+    {id: 5, name: 'Apple Education', url: 'https://student-redirect.studentoffersteam.workers.dev/apple', official: false, enabled: true, discovered_via: 'StudentOffers API'});
+  const curated = so.ensureCuratedSources();
+  assert.equal(curated.upgraded, 1);
+  assert.equal(db.sources.find(s => s.id === 1).official, true, 'curated URL wins over the lead');
+  assert.equal(so.ensureCuratedSources().upgraded, 0, 'idempotent');
+  assert.deepEqual(so.promoteOfficialLeads(), {promoted: 1});
+  assert.equal(db.sources.find(s => s.id === 2).official_reason, 'brand_domain');
+  assert.ok([3, 4, 5].every(key => db.sources.find(s => s.id === key).official === false), 'aggregators, blogs and redirects stay unconfirmed');
+  assert.deepEqual(so.promoteOfficialLeads(), {promoted: 0});
+});

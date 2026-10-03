@@ -112,5 +112,22 @@ export const CURATED_SOURCES = [
   ["Emirates Student Offer", "https://www.emirates.com/english/special-offers/student-offer/", "Travel", ["GLOBAL"]],
   ["Qatar Airways Student Club", "https://www.qatarairways.com/en/offers/student-club.html", "Travel", ["GLOBAL"]],
   ["Chase College Checking", "https://www.chase.com/personal/checking/college-checking", "Finance", ["US"]],
-  ["Discover it Student", "https://www.discover.com/credit-cards/student-credit-card/", "Finance", ["US"]]
+  ["Discover it Student", "https://www.discover.com/credit-cards/student-credit-card/", "Finance", ["US"]],
+  // Fase 14 — Latinoamérica: páginas oficiales locales, verificadas el 2026-10-02.
+  ["Spotify Premium para Estudiantes (Colombia)", "https://www.spotify.com/co-es/student/", "Streaming", ["CO"]],
+  ["Spotify Premium para Estudiantes (México)", "https://www.spotify.com/mx/student/", "Streaming", ["MX"]],
+  ["Spotify Premium para Estudiantes (Chile)", "https://www.spotify.com/cl/student/", "Streaming", ["CL"]],
+  ["Spotify Premium para Estudiantes (Argentina)", "https://www.spotify.com/ar/student/", "Streaming", ["AR"]],
+  ["Spotify Premium para Estudiantes (Perú)", "https://www.spotify.com/pe/student/", "Streaming", ["PE"]],
+  ["Spotify Premium Universitário (Brasil)", "https://www.spotify.com/br/student/", "Streaming", ["BR"]],
+  ["Adobe Creative Cloud para estudiantes (Latinoamérica)", "https://www.adobe.com/la/creativecloud/buy/students.html", "Design", ["REGIONAL"]],
+  ["Apple precios para la educación (México)", "https://www.apple.com/mx-edu/store", "Hardware", ["MX"]],
+  ["Apple precios para la educación (Chile)", "https://www.apple.com/cl-edu/store", "Hardware", ["CL"]],
+  ["Tarjeta Nacional Estudiantil TNE (Chile)", "https://www.chileatiende.gob.cl/fichas/10314-tarjeta-nacional-estudiantil-tne", "Travel", ["CL"]],
+  ["Boleto Educativo (Ciudad de Buenos Aires)", "https://boletoestudiantil.buenosaires.gob.ar/", "Travel", ["AR"]],
+  ["Tarifa preferencial Metro de Medellín (Sapiencia)", "https://sapiencia.gov.co/tarifa-preferencial-metro-2/", "Travel", ["CO"]],
+  ["Carné ISIC Colombia", "https://isiccolombia.org/que-es-isic/", "Education", ["CO"]],
+  ["Carné ISIC Perú", "https://isic.pe/", "Education", ["PE"]],
+  ["Carné ISIC Argentina", "https://isic.com.ar/", "Education", ["AR"]],
+  ["Movistar Plan Estudiante (Perú)", "https://www.movistar.com.pe/plan-estudiante", "Shopping", ["PE"]]
 ];
