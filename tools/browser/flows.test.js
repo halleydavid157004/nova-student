@@ -8,7 +8,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-test('browser: search, open offer and persist an alert', {timeout:45000},async()=>{
+test('browser: search, open offer, persist an alert and browse the server catalog', {timeout:45000},async()=>{
   const root=fileURLToPath(new URL('../../',import.meta.url));const dir=mkdtempSync(path.join(tmpdir(),'nova-e2e-'));
   const state=JSON.parse(readFileSync(path.join(root,'test/fixtures/legacy-state.json'),'utf8'));
   state.alerts=[];state.offers.forEach(offer=>offer.verified_at=new Date().toISOString());
@@ -23,7 +23,7 @@ test('browser: search, open offer and persist an alert', {timeout:45000},async()
     assert.ok(ready,output);
     browser=await chromium.launch();const context=await browser.newContext();
     await context.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
-    const page=await context.newPage();await page.goto(base);
+    const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base);
     await page.locator('#nav-discover').click();await page.locator('#q').fill('cloud');await page.locator('#searchBtn').click();
     await page.locator('#grid .card').first().waitFor();assert.match(await page.locator('#grid').innerText(),/Educación cloud/);
     await page.locator('#grid .card').first().click();await page.locator('#modalTitle').waitFor();assert.match(await page.locator('#modalTitle').innerText(),/Educación cloud/);
@@ -32,6 +32,12 @@ test('browser: search, open offer and persist an alert', {timeout:45000},async()
     await page.locator('#createAlert-header').click();await page.locator('#alertEmail').fill('browser-fixture@example.invalid');
     await page.locator('#alertSubmitBtn').click();
     await page.waitForFunction(()=>/guardada|creada|activada/i.test(document.querySelector('#alertStatus')?.textContent||''));
+    await page.goto(base+'/catalogo/');
+    await page.waitForFunction(()=>document.querySelectorAll('#country option').length===250);
+    await page.fill('#busqueda','cloud');
+    await page.locator('[data-offer]:visible h2 a').first().click();
+    await page.locator('h1').waitFor();assert.match(await page.locator('h1').textContent(),/Educación cloud/);
+    assert.equal(errors.length,0);
     const stored=JSON.parse(readFileSync(database,'utf8'));assert.ok(stored.alerts.some(alert=>alert.email==='browser-fixture@example.invalid'));
   }finally{
     if(browser)await browser.close();child.kill('SIGTERM');await new Promise(resolve=>{if(child.exitCode!==null)return resolve();child.once('exit',resolve);setTimeout(()=>{child.kill('SIGKILL');resolve()},2000).unref()});rmSync(dir,{recursive:true,force:true});
