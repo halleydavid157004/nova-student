@@ -54,7 +54,7 @@ export function validExtraction(value,text) {
 export function maxAgeDays(){const n=Number(process.env.LIVENESS_MAX_AGE_DAYS||14);return Number.isInteger(n)&&n>=1&&n<=90?n:14;}
 export function freshness(offer,now=Date.now(),days=maxAgeDays()) {
   const date=Date.parse(offer.liveness_verified_at||offer.verified_at||offer.discovered_at||'');
-  return Number.isFinite(date)&&now-date<=days*86400000;
+  return Number.isFinite(date)&&date<=now+60000&&now-date<=days*86400000;
 }
 export function assessment(offer,response,extraction,{now=Date.now(),reports=0,extractionError=false}={}) {
   const section=relevantSection(response.body||'');

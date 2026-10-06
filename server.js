@@ -1,3 +1,5 @@
+import {createWebCatalog} from './src/services/web-catalog.js';
+const webCatalog=createWebCatalog();
 import {publicCatalog} from './src/services/catalog-export.js';
 import {handleAdminReview} from './src/services/admin-review.js';
 import {handleAccountDeletion} from './src/services/account-deletion.js';
@@ -14,28 +16,28 @@ const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8'
 function json(res,status,obj){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Access-Control-Allow-Origin':'*','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(obj))}
 function body(req){return new Promise((resolve,reject)=>{let x='';let tooLarge=false;req.on('data',d=>{if(tooLarge)return;x+=d;if(x.length>1e6){tooLarge=true;reject(Object.assign(new Error('Payload too large'),{status:413}));req.resume()}});req.on('end',()=>{if(tooLarge)return;try{const parsed=x?JSON.parse(x):{};if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('Invalid JSON object');resolve(parsed)}catch{reject(Object.assign(new Error('Invalid JSON object'),{status:400}))}});req.on('error',reject)})}
 function staticFile(res,p){try{const s=fs.statSync(p);if(!s.isFile())return false;res.writeHead(200,{'Content-Type':types[path.extname(p)]||'application/octet-stream','Cache-Control':['benefits.html','admin.html','account.html','preferences.html','privacy.html'].includes(path.basename(p))?'no-store':path.extname(p)==='.html'?'no-cache':'public, max-age=3600'});fs.createReadStream(p).pipe(res);return true}catch{return false}}
-const server=http.createServer(async(req,res)=>{try{if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Allow-Methods':'GET,POST,DELETE,OPTIONS'});return res.end()}const u=new URL(req.url,`http://${req.headers.host||'localhost'}`),p=u.pathname;
+const server=http.createServer(async(req,res)=>{try{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');if(process.env.RENDER==='true')res.setHeader('Strict-Transport-Security','max-age=31536000');if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Allow-Methods':'GET,POST,DELETE,OPTIONS'});return res.end()}const u=new URL(req.url,`http://${req.headers.host||'localhost'}`),p=u.pathname;
 if(await handleAdminReview(req,res,u,{json,body}))return;
 if(await handleAccountDeletion(req,res,u,{json,body}))return;
 if(await handleSubscriptions(req,res,u,{json,body}))return;
 if(p==='/api/auth-config'&&req.method==='GET')return json(res,200,authConfig());
-if(p==='/api/health')return json(res,200,{ok:true,time:new Date().toISOString(),version:'2.17.0',revision:process.env.RENDER_GIT_COMMIT||null,storage:storageStatus()});
+if(p==='/api/health')return json(res,200,{ok:true,time:new Date().toISOString(),version:'2.17.1',revision:process.env.RENDER_GIT_COMMIT||null,storage:storageStatus()});
 if(['/benefits.html','/admin.html','/account.html','/preferences.html','/privacy.html'].includes(p)){res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Content-Security-Policy',"default-src 'self'; connect-src 'self' https://*.supabase.co; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");res.setHeader('Cache-Control','no-store');}
 if(p.startsWith('/api/') && req.method==='GET' && !getWorkerStatus().localScanning)await refreshStorage();
 if(p==='/api/stats'){const fresh=uniqueOffers(db.offers.filter(o=>isPublishedOffer(o)&&Date.now()-new Date(o.verified_at).getTime()<7*86400000)).length,events=db.events.filter(e=>Date.now()-new Date(e.created_at).getTime()<7*86400000).length;return json(res,200,{total:uniqueOffers(db.offers.filter(isPublishedOffer)).length,sources:db.sources.filter(s=>s.enabled).length,fresh,events})}
 if(p==='/api/catalog'&&req.method==='GET')return json(res,200,publicCatalog(db.offers));
-if(p==='/api/offers'&&req.method==='GET'){const q=u.searchParams.get('q')||'';const offers=searchOffers(Object.fromEntries(u.searchParams));return json(res,200,{offers,suggestions:offers.length?[]:searchSuggestions(q),gap_topics:offers.length?[]:gapTopics(q)})}
+if(p==='/api/offers'&&req.method==='GET'){const q=u.searchParams.get('q')||'';const offers=searchOffers(Object.fromEntries(u.searchParams));return json(res,200,{offers:publicCatalog(offers).offers,suggestions:offers.length?[]:searchSuggestions(q),gap_topics:offers.length?[]:gapTopics(q)})}
 if(p==='/api/search-gap'&&req.method==='POST'){
  const x=await body(req),allowed=new Set(SYNONYMS.map(g=>g[0]));
  if(Object.keys(x).some(k=>k!=='topics')||!Array.isArray(x.topics)||x.topics.length<1||x.topics.length>4||x.topics.some(t=>!allowed.has(t)))return json(res,400,{error:'Invalid topics'});
  const admission=gapBudget();if(admission.retryAfter){res.setHeader('Retry-After',String(admission.retryAfter));return json(res,429,{error:'Search telemetry busy'})}
  try{for(const topic of new Set(x.topics)){const day=new Date().toISOString().slice(0,10);const existing=db.events.find(e=>e.type==='search_gap'&&e.title===topic&&e.details?.day===day);if(!existing)db.events.push({id:id('events'),type:'search_gap',title:topic,details:{day},created_at:new Date().toISOString()});}save();await flushSave();return json(res,200,{ok:true});}finally{admission.release()}
 }
-if(/^\/api\/offers\/\d+$/.test(p)&&req.method==='GET'){const o=db.offers.find(x=>x.id===Number(p.split('/').pop()));return isPublishedOffer(o)?json(res,200,{offer:o}):json(res,404,{error:'Not found'})}
-if(p==='/api/domain-offers')return json(res,200,{offers:domainOffers(u.searchParams.get('domain'))});
+if(/^\/api\/offers\/\d+$/.test(p)&&req.method==='GET'){const o=db.offers.find(x=>x.id===Number(p.split('/').pop()));return isPublishedOffer(o)?json(res,200,{offer:publicCatalog([o]).offers[0]}):json(res,404,{error:'Not found'})}
+if(p==='/api/domain-offers')return json(res,200,{offers:publicCatalog(domainOffers(u.searchParams.get('domain'))).offers});
 if(p==='/api/meta'){return json(res,200,{categories:[...new Set(uniqueOffers(db.offers.filter(isPublishedOffer)).map(o=>o.category))].sort(),verifications:[...new Set(uniqueOffers(db.offers.filter(isPublishedOffer)).map(o=>o.verification))].sort(),categoryMeta:CATEGORIES})}
 if(p==='/api/categories'){const cats=Object.entries(CATEGORIES).map(([key,v])=>({key,offers:uniqueOffers(db.offers.filter(o=>isPublishedOffer(o)&&o.category===key)).length,...v})).filter(c=>c.offers>0).sort((a,b)=>b.offers-a.offers);return json(res,200,{categories:cats})}
-if(p==='/api/offers/trending'){const trending=uniqueOffers(db.offers.filter(o=>isPublishedOffer(o)&&highlights(o,{maxAge:maxAgeDays()}).length>0).sort((a,b)=>b.confidence-a.confidence)).slice(0,20);return json(res,200,{offers:trending})}
+if(p==='/api/offers/trending'){const trending=uniqueOffers(db.offers.filter(o=>isPublishedOffer(o)&&highlights(o,{maxAge:maxAgeDays()}).length>0).sort((a,b)=>b.confidence-a.confidence)).slice(0,20);return json(res,200,{offers:publicCatalog(trending).offers})}
 if(p==='/api/worker-status'){return json(res,200,{worker:getWorkerStatus(),db:{offers:db.offers.length,sources:db.sources.length,alerts:db.alerts.length,events:db.events.length}})}
 if(p==='/api/events')return json(res,200,{events:[...db.events].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,50)});
 if(p==='/api/sources'){const q=String(u.searchParams.get('q')||'').toLowerCase().trim();let sources=[...db.sources];if(q)sources=sources.filter(x=>[x.name,x.domain,x.category,x.url].join(' ').toLowerCase().includes(q));sources.sort((a,b)=>Number(b.official)-Number(a.official)||a.name.localeCompare(b.name));return json(res,200,{sources:sources.slice(0,Math.max(1,Math.min(1000,Number(u.searchParams.get('limit'))||100)))})}
@@ -54,7 +56,22 @@ if(/^\/api\/offers\/\d+\/reports$/.test(p)&&req.method==='POST'){
  return json(res,result.unavailable?503:200,result);
 }
 if(p==='/api/ai/status')return json(res,200,aiStatus());
-if(!p.startsWith('/api/')){const rel=p==='/'?'index.html':decodeURIComponent(p.slice(1));const fp=path.resolve(pub,rel);if((fp===pub||fp.startsWith(pub+path.sep))&&staticFile(res,fp))return;if(staticFile(res,path.join(pub,'index.html')))return}
+if(((p==='/catalogo'||p.startsWith('/catalogo/'))||p==='/robots.txt'||p==='/sitemap.xml')&&req.method==='GET'){
+ await refreshStorage();
+ if(p==='/catalogo'){res.writeHead(308,{Location:'/catalogo/'});return res.end();}
+ res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' https://nova-student-radar.onrender.com; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+ const site=webCatalog(db.offers);
+ const key=p==='/robots.txt'||p==='/sitemap.xml'?p.slice(1):p.slice('/catalogo/'.length);
+ const file=key.endsWith('/')?key+'index.html':key||'index.html';const content=site.files.get(file);
+ if(content!==undefined){const mime=file.endsWith('.xml')?'application/xml; charset=utf-8':file==='robots.txt'?'text/plain; charset=utf-8':types[path.extname(file)]||'application/octet-stream';res.writeHead(200,{'Content-Type':mime,'Cache-Control':'no-cache'});return res.end(content);}
+ return json(res,404,{error:'Not found'});
+}
+if(!p.startsWith('/api/')){
+ if(!res.hasHeader('Content-Security-Policy'))res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https://icon.horse data:; connect-src 'self' https://cdn.jsdelivr.net https://*.supabase.co; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+ const rel=p==='/'?'index.html':decodeURIComponent(p.slice(1));const fp=path.resolve(pub,rel);
+ if((fp===pub||fp.startsWith(pub+path.sep))&&staticFile(res,fp))return;
+ return json(res,404,{error:'Not found'});
+}
 return json(res,404,{error:'Not found'});
 }catch(e){console.error(e);return json(res,e.status||500,{error:e.status?e.message:'Error interno del servidor'})}});
 server.listen(port,()=>{console.log(`Nova Student Radar → http://localhost:${port}`);startWorker()});

@@ -17,7 +17,7 @@ export function effectiveOfferType(o){
 export function verificationInfo(o){
  const date=o?.liveness_verified_at||o?.verified_at;
  const evidence=o?.evidence||o?.source_excerpt;
- const pending=o?.source_trust==='unconfirmed'||(o?.liveness_status&&o.liveness_status!=='active');
+ const pending=o?.verification_state==='needs_review'||o?.source_trust==='unconfirmed'||(o?.liveness_status&&o.liveness_status!=='active');
  const proven=!pending&&o?.liveness_status==='active'&&Number.isFinite(Date.parse(o?.liveness_verified_at))&&typeof evidence==='string'&&evidence.trim().length>=10;
  return {state:pending?'needs_review':proven?'verified':'unconfirmed',label:pending?'Comprobación en revisión':proven?'Comprobada con evidencia':'Última comprobación',date,evidence:typeof evidence==='string'?evidence.slice(0,400):null};
 }
