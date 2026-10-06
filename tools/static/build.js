@@ -1,62 +1,7 @@
-import {verificationInfo} from '../../public/search/quality.js';
-import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
+// Shared production-safe generator; browser dependencies remain in Actions.
+import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {publicCatalog} from '../../src/services/catalog-export.js';
-import {maxAgeDays} from '../../src/services/liveness.js';
-
-const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const list=values=>Array.isArray(values)?values.filter(v=>typeof v==='string'):[];
-const json=value=>JSON.stringify(value).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026');
-const date=value=>{const n=Date.parse(value);return Number.isFinite(n)?new Date(n).toISOString():null;};
-const css=`:root{color-scheme:dark;--bg:#101622;--card:#192335;--fg:#f1f5fc;--muted:#c2cce0;--accent:#a8f1cf}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.65 system-ui,sans-serif}a{color:var(--accent)}a:focus-visible,input:focus-visible{outline:3px solid white;outline-offset:4px}header,main,footer{max-width:1120px;margin:auto;padding:24px}header{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}h1{font-size:clamp(2rem,5vw,3.5rem);line-height:1.15;max-width:900px}h2{line-height:1.3}p{max-width:760px}.muted,small{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:20px}.card{background:var(--card);padding:24px;border:1px solid #46536a;border-radius:16px}.badge{font-size:.85rem;color:var(--accent)}label{display:block;font-weight:650}select{width:100%;padding:12px;background:#101622;color:white;border:1px solid #71809a;font:inherit}button{padding:10px;background:#192335;color:white;border:1px solid #71809a;font:inherit}input[type="checkbox"]{width:auto}input{width:100%;max-width:650px;padding:14px;border:1px solid #71809a;border-radius:8px;background:#101622;color:white;font:inherit}blockquote{border-left:3px solid var(--accent);padding-left:18px;margin-left:0}li{margin-bottom:10px}.skip{position:absolute;top:-80px}.skip:focus{top:0;background:#101622;padding:12px}[hidden]{display:none!important}footer{border-top:1px solid #46536a;margin-top:40px}`;
-
-export function buildSite(input,{baseUrl='https://halleydavid157004.github.io/nova-student/',now=Date.now()}={}){
- const base=new URL(baseUrl);if(base.protocol!=='https:'||base.username||base.password||base.search||base.hash)throw new Error('Invalid static site URL');
- if(!base.pathname.endsWith('/'))base.pathname+='/';
- if(input?.schema!==1||!Array.isArray(input.offers)||input.offers.length>5000)throw new Error('Invalid public catalog');
- const inputIds=input.offers.map(o=>o.id);if(new Set(inputIds).size!==inputIds.length)throw new Error('Invalid or duplicate offer ID');
- // Reapply the public allowlist even when the input artifact has extra fields.
- const catalog=publicCatalog(input.offers.map(o=>({...o,source_excerpt:o.evidence})));
- const files=new Map(),ids=new Set();
- const slug=o=>{if(!Number.isSafeInteger(o.id)||o.id<1||ids.has(o.id))throw new Error('Invalid or duplicate offer ID');ids.add(o.id);return `${o.id}-${String(o.slug||o.brand||'beneficio').normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80)||'beneficio'}`;};
- const offers=catalog.offers.map(o=>({...o,page:`ofertas/${slug(o)}/`}));
- catalog.offers=offers;
- const stamp=new Date(now).toISOString();catalog.generated_at=stamp;
- const shell=(title,description,relative,body,structured)=>{
-  const url=new URL(relative,base).href;
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)}</title><meta name="description" content="${escape(description)}"><link rel="canonical" href="${escape(url)}"><meta property="og:type" content="website"><meta property="og:title" content="${escape(title)}"><meta property="og:description" content="${escape(description)}"><meta property="og:url" content="${escape(url)}"><meta name="nova-max-age" content="${maxAgeDays()}"><meta name="theme-color" content="#101622"><link rel="icon" href="${escape(base.pathname)}icon.svg" type="image/svg+xml"><link rel="stylesheet" href="${escape(base.pathname)}style.css"><script type="application/ld+json">${json(structured)}</script></head><body><a class="skip" href="#contenido">Saltar al contenido</a><header><a href="${escape(base.pathname)}">✦ Nova Student Radar</a><a href="${escape(base.pathname)}benefits.html">Mis beneficios</a><a href="https://nova-student-radar.onrender.com/">Nova AI y alertas</a></header><main id="contenido">${body}</main><footer><p>Catálogo informativo gratuito. La fuente determina la elegibilidad y las condiciones finales.</p><p class="muted">Catálogo generado: <time datetime="${stamp}">${escape(stamp.replace('T',' ').slice(0,16))} UTC</time></p></footer><script src="${escape(base.pathname)}catalog.js" type="module"></script></body></html>`;
- };
- const verified=o=>date(o.liveness_verified_at||o.verified_at);
- const badge=o=>'<span data-highlights>'+ (o.highlights||[]).map(h=>`<span title="${escape(h.reason)}">${escape(h.label)}</span> · `).join('')+'</span>'+(verified(o)?`${escape(verificationInfo(o).label)} el <time datetime="${verified(o)}">${verified(o).slice(0,10)}</time>`:'Verificación pendiente');
- const cards=offers.map(o=>`<article class="card" data-offer data-id="${o.id}" data-verified="${escape(verified(o))}" data-expires="${escape(date(o.expires_at))}"><span class="badge">${badge(o)}</span><h2><a href="${escape(base.pathname+o.page)}">${escape(o.title||o.brand)}</a></h2><p>${escape(o.benefit||o.summary)}</p><p class="muted">${escape(list(o.countries).join(', '))} · ${escape(o.verification)}</p></article>`).join('');
- files.set('index.html',shell('Beneficios estudiantiles verificados | Nova Student Radar','Encuentra herramientas y beneficios para estudiantes, con requisitos, fuente y fecha de verificación.','',`<h1>Más oportunidades para tu vida estudiantil</h1><p>Consulta beneficios revisados, compara requisitos y comprueba la fuente antes de reclamarlos.</p><label for="busqueda">Buscar beneficios</label><input id="busqueda" type="search" placeholder="Marca, herramienta o beneficio" autocomplete="off"><div class="grid"><div><label for="country">País</label><select id="country"><option value="ALL">Todos los países</option></select></div><div><label for="category">Categoría</label><select id="category"><option value="ALL">Todas</option></select></div><div><label for="verification">Verificación</label><select id="verification"><option value="ALL">Cualquiera</option></select></div><div><label for="email">Correo requerido</label><select id="email"><option value="ALL">Cualquiera</option><option value="educational">Educativo / institucional</option><option value="any">Cualquier correo</option><option value="none">Sin correo</option><option value="unknown">Consultar fuente</option></select></div></div><label for="cross"><input id="cross" type="checkbox"> Explorar también otros países (comprueba requisitos)</label><label for="week"><input id="week" type="checkbox"> Solo verificadas esta semana</label><p id="resultados" role="status" aria-live="polite">${offers.length} beneficios disponibles</p><div class="grid" id="offersGrid">${cards}</div><div id="sugerencias"></div><p id="vacio" hidden>No encontramos coincidencias. Prueba otra marca o palabra.</p>`,{'@context':'https://schema.org','@type':'CollectionPage',name:'Nova Student Radar',url:base.href,description:'Beneficios estudiantiles revisados',mainEntity:{'@type':'ItemList',itemListElement:offers.map((o,i)=>({'@type':'ListItem',position:i+1,url:new URL(o.page,base).href,name:o.title||o.brand}))}}));
- for(const o of offers){
- const section=(title,values)=>list(values).length?`<h2>${title}</h2><ul>${list(values).map(v=>`<li>${escape(v)}</li>`).join('')}</ul>`:'';
- const source=o.source_url?`<p><a href="${escape(o.source_url)}" rel="noopener noreferrer">Consultar fuente del beneficio: ${escape(o.source_domain)}</a></p>`:'<p>Fuente no disponible; comprueba las condiciones antes de reclamar.</p>';
- const body=`<p><a href="${escape(base.pathname)}">← Todos los beneficios</a></p><article data-offer data-id="${o.id}" data-verified="${escape(verified(o))}" data-expires="${escape(date(o.expires_at))}"><span class="badge">${badge(o)}</span><h1>${escape(o.title||o.brand)}</h1><p>${escape(o.benefit||o.summary)}</p><p>Países: ${escape(list(o.countries).join(', ')||'Consultar fuente')}</p><p>Verificación: ${escape(o.verification||'Consultar requisitos')}</p><p>Acceso internacional: comprueba residencia, matrícula y método de verificación en la fuente. Una VPN no sustituye estos requisitos. Solo sigue métodos de acceso expresamente permitidos por el proveedor.</p>${section('Requisitos',o.requirements)}${section('Pasos para reclamar',o.steps)}${o.expires_at?`<p>Vencimiento: ${escape(date(o.expires_at)?.slice(0,10)||'Consultar fuente')}</p>`:''}${o.evidence?`<h2>Evidencia de la última comprobación</h2><blockquote>${escape(o.evidence)}</blockquote>`:''}${source}</article><p id="vigencia" role="status"></p>`;
- files.set(o.page+'index.html',shell(`${o.title||o.brand} | Nova Student Radar`,String(o.benefit||o.summary||'Beneficio estudiantil').slice(0,180),o.page,body,{'@context':'https://schema.org','@type':'WebPage',name:o.title||o.brand,url:new URL(o.page,base).href,description:o.benefit||o.summary,dateModified:date(o.updated_at)||verified(o),lastReviewed:verified(o),citation:o.source_url}));
- }
-
- const benefits=readFileSync(new URL('../../public/benefits.html',import.meta.url),'utf8')
-  .replace('data-catalog="/api/catalog"','data-catalog="./catalog.json"')
-  .replace('data-report-origin=""','data-report-origin="https://nova-student-radar.onrender.com"')
-  .replace('data-mode="render"','data-mode="static"')
-  .replace('href="./privacy.html"','href="https://nova-student-radar.onrender.com/privacy.html"');
- files.set('benefits.html',benefits);files.set('account.css',readFileSync(new URL('../../public/account.css',import.meta.url),'utf8'));
- for(const name of ['model.js','page.js','page.css'])files.set('benefits/'+name,readFileSync(new URL('../../public/benefits/'+name,import.meta.url),'utf8'));
- files.set('catalog.json',JSON.stringify(catalog));
- files.set('style.css',css);
- files.set('catalog.js',readFileSync(new URL('../../public/catalog-client.js',import.meta.url),'utf8'));
- for(const name of ['engine.js','synonyms.js','countries.js','identity.js','quality.js','highlights.js'])files.set('search/'+name,readFileSync(new URL('../../public/search/'+name,import.meta.url),'utf8'));
- files.set('icon.svg','<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#101622"/><path d="M32 6 39 25 58 32 39 39 32 58 25 39 6 32 25 25Z" fill="#a8f1cf"/></svg>');
- files.set('sitemap.xml',`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${['','benefits.html',...offers.map(o=>o.page)].map(p=>`<url><loc>${escape(new URL(p,base).href)}</loc><lastmod>${stamp.slice(0,10)}</lastmod></url>`).join('')}</urlset>`);
- files.set('robots.txt',`User-agent: *\nAllow: /\nSitemap: ${new URL('sitemap.xml',base).href}\n`);
- files.set('.nojekyll','');
- files.set('404.html',shell('Página no encontrada | Nova Student Radar','Esta ficha no está disponible.','404.html','<h1>Página no encontrada</h1><p>La oferta pudo retirarse. <a href="'+escape(base.pathname)+'">Consulta el catálogo vigente</a>.</p>',{'@context':'https://schema.org','@type':'WebPage',name:'Página no encontrada'}));
- const bytes=[...files.values()].reduce((sum,text)=>sum+Buffer.byteLength(text),0);
- if(bytes>10*1024*1024)throw new Error('Static site exceeds 10 MB budget');
- return {files,offers:offers.length,bytes};
-}
-export function writeSite(site,directory){for(const [name,body] of site.files){const target=path.join(directory,name);mkdirSync(path.dirname(target),{recursive:true});writeFileSync(target,body);}}
+import {buildSite,writeSite} from '../../src/services/static-site.js';
+export {buildSite,writeSite};
 if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){const input=JSON.parse(readFileSync(process.argv[2]||'generated/catalog.json','utf8'));const site=buildSite(input,{baseUrl:process.env.STATIC_BASE_URL});writeSite(site,process.argv[3]||'generated/site');console.log(JSON.stringify({offers:site.offers,bytes:site.bytes}));}

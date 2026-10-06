@@ -32,6 +32,13 @@ test('HTTP API: arranque, búsqueda, alertas, seguridad y estado de IA', async t
       await new Promise(resolve=>setTimeout(resolve,50));
     }
     assert.ok(ready,'server starts and responds');
+    await t.test('SEO routes serve correct formats, real catalog HTML and 404 without exposing metadata',async()=>{
+      const robots=await request('/robots.txt');assert.equal(robots.status,200);assert.match(robots.headers.get('content-type'),/text\/plain/);assert.match(await robots.text(),/Sitemap:/);
+      const map=await request('/sitemap.xml');assert.equal(map.status,200);assert.match(map.headers.get('content-type'),/application\/xml/);assert.match(await map.text(),/catalogo\/ofertas\//);
+      const page=await request('/catalogo/');assert.equal(page.status,200);assert.match(await page.text(),/data-offer/);
+      const root=await request('/');assert.match(root.headers.get('content-security-policy'),/script-src 'self'/);assert.equal((await request('/route-that-does-not-exist')).status,404);
+      const rows=(await(await request('/api/offers')).json()).offers;assert.ok(rows.length);assert.ok(rows.every(o=>!('source_id' in o)&&!('source_hash' in o)&&!('auto_discovered' in o)));
+    });
     await t.test('public pages and catalogs',async()=>{
       const home=await request('/'); assert.equal(home.status,200);assert.match(await home.text(),/Nova Student/);
       const css=await request('/styles.css'); assert.equal(css.status,200);
