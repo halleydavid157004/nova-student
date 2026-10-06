@@ -117,7 +117,7 @@ test('curated list covers the main Latin American countries with local official 
   assert.ok(latam.length >= 12);
 });
 
-test('a curated page first saved as a lead becomes official; old StudentOffers leads on the brand domain too', () => {
+test('curated pages are promoted while uncurated StudentOffers URLs stay pending', () => {
   db.sources.length = 0;
   db.sources.push(
     {id: 1, name: 'Hulu', url: 'https://www.hulu.com/student', official: false, enabled: true, discovered_via: 'Brave Search'},
@@ -129,8 +129,15 @@ test('a curated page first saved as a lead becomes official; old StudentOffers l
   assert.equal(curated.upgraded, 1);
   assert.equal(db.sources.find(s => s.id === 1).official, true, 'curated URL wins over the lead');
   assert.equal(so.ensureCuratedSources().upgraded, 0, 'idempotent');
-  assert.deepEqual(so.promoteOfficialLeads(), {promoted: 1});
-  assert.equal(db.sources.find(s => s.id === 2).official_reason, 'brand_domain');
+  assert.deepEqual(so.promoteOfficialLeads(), {promoted: 0});
+  assert.equal(db.sources.find(s => s.id === 2).official, false, 'a genuine but uncurated URL still requires review');
   assert.ok([3, 4, 5].every(key => db.sources.find(s => s.id === key).official === false), 'aggregators, blogs and redirects stay unconfirmed');
   assert.deepEqual(so.promoteOfficialLeads(), {promoted: 0});
+});
+
+test('official trust requires an exact curated page and repairs legacy hostname promotions',()=>{
+ for(const url of ['https://notion.attacker.example/student','https://attacker.example/notion.com','https://notion.com.attacker.example/student','https://notion.com/unknown-promotion','https://notion.com@attacker.example/student','https://figma.com/blog/unknown'])assert.equal(so.brandOwnsDomain('Notion',url),false);
+ assert.equal(so.brandOwnsDomain('Notion','https://www.notion.com/product/notion-for-education?utm_source=copy'),true);
+ db.sources.length=0;db.sources.push({id:99,name:'Notion',url:'https://notion.attacker.example/student',official:true,discovered_via:'StudentOffers API'});
+ assert.deepEqual(so.promoteOfficialLeads(),{promoted:0,demoted:1});assert.equal(db.sources[0].official,false);assert.equal(db.sources[0].official_reason,'unconfirmed_url');assert.deepEqual(so.promoteOfficialLeads(),{promoted:0});
 });
