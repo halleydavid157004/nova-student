@@ -9,7 +9,7 @@ import {JSDOM} from 'jsdom';
 
 const html=readFileSync('public/index.html','utf8');
 const app=readFileSync('public/app.js','utf8');
-const sample={id:1,brand:'Notion',title:'Plan educativo Notion',summary:'Gratis para estudiantes',benefit:'Acceso educativo',category:'Productivity',verification:'Educational email',countries:['GLOBAL'],offer_type:'free',official:true,confidence:99,source_url:'https://www.notion.so/product/notion-for-education',source_domain:'notion.so',verified_at:new Date().toISOString(),tags:['trending'],steps:['Visita Notion'],liveness_verified_at:new Date().toISOString(),source_excerpt:'<img src=x onerror=alert(1)> beneficio estudiantil'};
+const sample={id:1,brand:'Notion',title:'Plan educativo Notion',summary:'Gratis para estudiantes',benefit:'Acceso educativo',category:'Productivity',verification:'Educational email',countries:['GLOBAL'],offer_type:'free',official:true,confidence:99,source_url:'https://www.notion.so/product/notion-for-education',source_domain:'notion.so',verified_at:new Date().toISOString(),tags:['trending'],steps:['Visita Notion'],liveness_verified_at:new Date().toISOString(),evidence:'<img src=x onerror=alert(1)> beneficio estudiantil'};
 const catalog=Array.from({length:60},(_,i)=>({...sample,id:i+1,title:`Plan educativo ${i+1}`}));
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 

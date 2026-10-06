@@ -436,6 +436,7 @@ async function openOffer(id) {
   try {
     const { offer: o } = await apiFetch(`/api/offers/${id}`);
     const stamp = verifiedStamp(o);
+    const evidence = o.evidence || o.source_excerpt;
     const isSaved = saved.has(o.id);
     content.innerHTML = `
       <div class="offer-detail-header" style="--h:${brandHue(o.brand || o.title)}">
@@ -476,7 +477,7 @@ async function openOffer(id) {
             <ol class="steps-list">${o.steps.map(st => `<li>${esc(st)}</li>`).join('')}</ol>
           </div>` : ''}
           <div class="offer-section"><h3>Acceso desde otros países</h3><p>Comprueba residencia, matrícula y método de verificación en los requisitos y la fuente. Una VPN no sustituye esos requisitos; utiliza solo métodos expresamente permitidos por el proveedor.</p></div>
-          ${o.liveness_verified_at && o.source_excerpt ? `<div class="offer-section" id="offerEvidence"><h3>Evidencia de la última verificación</h3><blockquote>${esc(o.source_excerpt)}</blockquote></div>` : ''}
+          ${o.liveness_verified_at && evidence ? `<div class="offer-section" id="offerEvidence"><h3>Evidencia de la última verificación</h3><blockquote>${esc(evidence)}</blockquote></div>` : ''}
         </div>
         <aside class="od-side">
           <dl class="facts">
