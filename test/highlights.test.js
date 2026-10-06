@@ -5,18 +5,18 @@ import {highlights} from '../public/search/highlights.js';
 import {publicCatalog} from '../src/services/catalog-export.js';
 import {prioritizedSources} from '../src/services/scan-priority.js';
 const now=Date.now(),day=86400000;
-const offer={id:1,status:'active',official:true,verified_at:new Date(now-day).toISOString(),confidence:99,offer_type:'free',requires_card:false,benefit:'Licencia educativa',requirements:['Matrícula vigente'],tags:['hot'],source_url:'https://example.org/student'};
+const offer={liveness_status:'active',liveness_verified_at:new Date(now-day).toISOString(),source_excerpt:'Students receive a free education license.',id:1,status:'active',official:true,verified_at:new Date(now-day).toISOString(),confidence:99,offer_type:'free',requires_card:false,benefit:'Licencia educativa gratuita',requirements:['Matrícula vigente'],tags:['hot'],source_url:'https://example.org/student'};
 const keys=o=>highlights(o,{now}).map(h=>h.key);
 test('highlights use approved data and documented criteria, not legacy tags',()=>{
  assert.deepEqual(keys(offer),['hot','imperdible']);
  assert.deepEqual(keys({...offer,confidence:89,tags:['hot','must-have']}),[]);
  assert.deepEqual(keys({...offer,requires_card:undefined}),['hot']);
  assert.deepEqual(keys({...offer,requirements:[]}),['hot']);
- assert.deepEqual(keys({...offer,offer_type:'discount'}),['hot']);
+ assert.deepEqual(keys({...offer,offer_type:'discount',benefit:'Descuento educativo'}),['hot']);
  assert.deepEqual(keys({...offer,liveness_score:80}),[]);
 });
 test('uncertain, future, stale, expired and unapproved offers never receive highlights',()=>{
- for(const patch of [{official:false},{status:'pending'},{verified_at:new Date(now+day).toISOString()},{verified_at:new Date(now-8*day).toISOString()},{expires_at:'invalid'},{expires_at:new Date(now-day).toISOString()},{liveness_status:'needs_review'},{liveness_status:'blocked'}])assert.deepEqual(keys({...offer,...patch}),[]);
+ for(const patch of [{official:false},{status:'pending'},{liveness_verified_at:new Date(now+day).toISOString()},{liveness_verified_at:new Date(now-8*day).toISOString()},{expires_at:'invalid'},{expires_at:new Date(now-day).toISOString()},{liveness_status:'needs_review'},{liveness_status:'blocked'}])assert.deepEqual(keys({...offer,...patch}),[]);
  assert.deepEqual(keys({...offer,expires_at:new Date(now+5*day).toISOString()}),['hot','imperdible','expiring']);
  assert.deepEqual(keys({...offer,liveness_verified_at:new Date(now-8*day).toISOString()}),[]);
  assert.deepEqual(highlights(offer,{now,maxAge:0}),[]);

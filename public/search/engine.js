@@ -1,3 +1,4 @@
+import {effectiveOfferType} from './quality.js';
 import {uniqueOffers} from './identity.js';
 import {SYNONYMS,TOPIC_CATEGORIES,TOPIC_TYPES} from './synonyms.js';
 export const fold=value=>String(value??'').normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase().trim();
@@ -18,9 +19,9 @@ export function emailRequirement(o){
  if(/no email required|sin correo|no requiere correo/.test(text))return 'none';
  return 'unknown';
 }
-export function published(o,now=Date.now(),maxAge=14){const stamp=Date.parse(o.liveness_verified_at||o.verified_at||o.discovered_at||'');return o.status==='active'&&(o.official===true||o.reviewed===true)&&(!o.expires_at||Date.parse(o.expires_at)>now)&&Number.isFinite(stamp)&&now-stamp<=maxAge*86400000;}
+export function published(o,now=Date.now(),maxAge=14){const stamp=Date.parse(o.liveness_verified_at||o.verified_at||o.discovered_at||'');return o.status==='active'&&(o.official===true||o.reviewed===true)&&(!o.expires_at||Date.parse(o.expires_at)>now)&&Number.isFinite(stamp)&&stamp<=now+60000&&now-stamp<=maxAge*86400000;}
 export function createSearchIndex(offers,{maxAge=14}={}){
- const rows=offers.filter(o=>published(o,Date.now(),maxAge)).map(o=>({offer:o,brand:fold(o.brand),tokens:new Map()}));
+ const rows=offers.filter(o=>published(o,Date.now(),maxAge)).map(o=>({...o,offer_type:effectiveOfferType(o)})).map(o=>({offer:o,brand:fold(o.brand),tokens:new Map()}));
  const inverted=new Map();
  for(let i=0;i<rows.length;i++){
   const row=rows[i],o=row.offer;
