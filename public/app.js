@@ -1,3 +1,4 @@
+import {effectiveOfferType,verificationInfo} from './search/quality.js';
 import {highlights} from './search/highlights.js';
 import {genericSummary} from './search/engine.js';
 import {logoDomain} from './search/logos.js';
@@ -196,6 +197,7 @@ const PIN = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke=
 const OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
 
 function renderCard(o) {
+  o={...o,offer_type:effectiveOfferType(o)};
   const isSaved = saved.has(o.id);
   const selectedCountry=$('#country')?.value || 'ALL';
   const foreign=selectedCountry!=='ALL'&&!(o.countries||[]).includes('GLOBAL')&&!(o.countries||[]).includes(selectedCountry);
@@ -223,7 +225,7 @@ function renderCard(o) {
       <div class="oc-foot">
         <span class="oc-place" title="${esc((o.countries || []).map(regionLabel).join(', '))}">${PIN}${esc(placesLabel(o))}</span>
         ${foreign ? '<span class="oc-warn" title="Comprueba si puedes reclamarla desde tu país">Otro país</span>' : ''}
-        <span class="oc-date">${stamp ? `Verificada <time datetime="${esc(stamp.toISOString())}">${esc(stamp.toLocaleDateString('es', { day: 'numeric', month: 'short' }))}</time>` : ''}</span>
+        <span class="oc-date">${stamp ? `${esc(verificationInfo(o).label)} <time datetime="${esc(stamp.toISOString())}">${esc(stamp.toLocaleDateString('es', { day: 'numeric', month: 'short' }))}</time>` : ''}</span>
         <button class="cmp-btn" type="button" data-compare="${o.id}" aria-pressed="false" aria-label="Comparar ${esc(o.brand || o.title)}" title="Comparar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M12 2v20"/></svg></button>
         <button class="oc-more" type="button" data-details="${o.id}">Detalles</button>
       </div>
@@ -480,7 +482,7 @@ async function openOffer(id) {
           <dl class="facts">
             <div><dt>Verificación</dt><dd>${esc(verLabel(o.verification))}</dd></div>
             <div><dt>Tarjeta</dt><dd>${o.requires_card===true ? 'Puede requerir' : o.requires_card===false ? 'No requiere' : 'Consultar fuente'}</dd></div>
-            <div><dt>${o.liveness_verified_at ? 'Verificada con evidencia' : 'Última comprobación'}</dt><dd>${stamp ? esc(stamp.toLocaleDateString('es', { dateStyle: 'medium' })) : 'Pendiente'}</dd></div>
+            <div><dt>${esc(verificationInfo(o).label)}</dt><dd>${stamp ? esc(stamp.toLocaleDateString('es', { dateStyle: 'medium' })) : 'Pendiente'}</dd></div>
             <div><dt>Estado</dt><dd>${o.liveness_status && o.liveness_status !== 'active' ? 'Necesita revisión' : 'Activa'}</dd></div>
             <div><dt>Países</dt><dd>${esc((o.countries || []).map(regionLabel).join(', ') || 'Por confirmar')}</dd></div>
             ${o.expires_at ? `<div><dt>Vence</dt><dd>${esc(new Date(o.expires_at).toLocaleDateString('es', { dateStyle: 'medium' }))}</dd></div>` : ''}

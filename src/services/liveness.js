@@ -101,7 +101,7 @@ export function assessment(offer,response,extraction,{now=Date.now(),reports=0,e
     patch:{status,liveness_score:score,liveness_status:state,consecutive_failures:failures,
       liveness_verified_at:success&&status==='active'?new Date(now).toISOString():offer.liveness_verified_at||null,
       ...(success&&status==='active'?{verified_at:new Date(now).toISOString()}:{}),source_hash:section.hash,
-      source_excerpt:extraction?.evidence||null},checked_at:new Date(now).toISOString()};
+      source_excerpt:extraction?.evidence||offer.source_excerpt||offer.approved_extraction?.evidence||null},checked_at:new Date(now).toISOString()};
 }
 
 export async function validateOffer(offer,response,{extract,headless,reports=0,now=Date.now()}={}) {

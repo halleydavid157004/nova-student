@@ -94,7 +94,7 @@ function guessOfferType(text) {
   if (/\bcredits?\b|\bcréditos?\b|\b\$\d+\s*(in|en)\s*credit/i.test(low)) return 'credits';
   if (/\b(bundle|pack|paquete)\b/i.test(low)) return 'bundle';
   if (/\b(discount|descuento|%\s*off|save\s*\d)\b/i.test(low)) return 'discount';
-  return 'free';
+  return 'other';
 }
 
 function guessVerification(text) {
