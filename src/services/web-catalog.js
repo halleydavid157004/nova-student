@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {publicCatalog} from './catalog-export.js';
-import {buildSite} from '../../tools/static/build.js';
+import {buildSite} from './static-site.js';
 import {PUBLIC_ORIGIN} from './subscriptions.js';
 // Shared generator: no browser dependencies or user data on Render.
 export function createWebCatalog(){

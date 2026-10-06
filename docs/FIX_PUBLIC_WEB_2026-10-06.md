@@ -2,7 +2,7 @@
 
 ## Cambios y alcance
 
-- Render sirve `/catalogo/` con ofertas publicadas en el HTML inicial, una ficha por oferta, catálogo JSON, sitemap y robots reales. Reutiliza el generador estático existente sin Playwright ni nuevas dependencias de producción.
+- Render sirve `/catalogo/` con ofertas publicadas en el HTML inicial, una ficha por oferta, catálogo JSON, sitemap y robots reales. Reutiliza el generador estático existente, trasladado a `src/services/static-site.js` para que el servidor y el lanzador no dependan de la carpeta de herramientas de Actions, sin Playwright ni nuevas dependencias de producción.
 - El pie de página enlaza al catálogo disponible. Las rutas inexistentes responden 404 en lugar de la portada. Se conservan los contratos de health, worker-status y la extensión.
 - Los endpoints de ofertas aplican la misma lista de campos públicos del catálogo: no entregan identificadores internos de fuentes, huellas ni metadatos de descubrimiento.
 - Se añaden cabeceras de seguridad y CSP a la portada y al catálogo. La inicialización del tema se mueve a un archivo para evitar JavaScript inline.
