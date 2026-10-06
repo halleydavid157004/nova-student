@@ -12,6 +12,7 @@
  *    radar extracts evidence from the official page and the offer passes review.
  */
 import {canonicalSource} from '../../public/search/identity.js';
+import {OFFERS} from '../data/seed.js';
 import {CURATED_SOURCES} from '../data/curated-sources.js';
 import {sourceClient, sourceUrl} from './source-http.js';
 import {db, save, id} from '../db.js';
@@ -74,14 +75,12 @@ export function parseOfferPage(html, pageUrl = SO_ORIGIN) {
   return pick ? {brand, url: pick.url, viaClaimButton: pick.claim} : null;
 }
 
-/** True when the link lives on the brand's own domain (e.g. Figma → figma.com, AWS Educate → aws.amazon.com). */
-export function brandOwnsDomain(brand, url) {
-  const host = hostOf(url);
-  if (!host || AGGREGATOR.test(host)) return false;
-  const labels = host.split('.');
-  const words = String(brand || '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 2 && !['for', 'the', 'and', 'student', 'students', 'education', 'edu', 'pro', 'plus', 'premium', 'free', 'plan'].includes(w));
-  const joined = words.join('');
-  return words.some(w => w.length >= 3 && labels.includes(w)) || (joined.length >= 3 && labels.some(l => l === joined));
+// Only explicitly curated benefit URLs confer trust. Brand-looking hostnames,
+// subdomains, redirects and unknown providers remain leads for human review.
+const trustedPages=new Set([...CURATED_SOURCES.map(row=>row[1]),...OFFERS.filter(o=>o.official).map(o=>o.source_url)].map(canonicalSource));
+export function brandOwnsDomain(_brand, url) {
+  try { const safe=sourceUrl(url);return safe.protocol==='https:'&&trustedPages.has(canonicalSource(safe.href)); }
+  catch { return false; }
 }
 
 function addSource({name, url, category, countries, official, via, ref}) {
@@ -125,14 +124,15 @@ export function ensureCuratedSources(list = CURATED_SOURCES, env = process.env) 
  * not brands, so the domain check would trust blogs.
  */
 export function promoteOfficialLeads() {
-  let promoted = 0;
-  for (const source of db.sources) {
-    if (source.official === true || !/^StudentOffers/i.test(String(source.discovered_via || ''))) continue;
-    if (!brandOwnsDomain(source.name, source.url)) continue;
-    source.official = true; source.official_reason = 'brand_domain'; promoted++;
+  let promoted=0,demoted=0;
+  for(const source of db.sources){
+    if(!/^StudentOffers/i.test(String(source.discovered_via||'')))continue;
+    const trusted=brandOwnsDomain(source.name,source.url);
+    if(trusted&&source.official!==true){source.official=true;source.official_reason='curated_url';promoted++;}
+    else if(!trusted&&source.official===true){source.official=false;source.official_reason='unconfirmed_url';demoted++;}
   }
-  if (promoted) save();
-  return {promoted};
+  if(promoted||demoted)save();
+  return demoted?{promoted,demoted}:{promoted};
 }
 
 /**
